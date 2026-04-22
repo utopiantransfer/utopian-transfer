@@ -99,7 +99,7 @@ td{color:#1f2937;font-weight:400}
 </head>
 <body>
 <header>
-<div><div class="logo">UTOPIAN <span>TRANSFER</span></div><div class="logo-sub">Birleşik Transfer Programı — Online</div></div>
+<div><div class="logo">UTOPIAN <span>TRANSFER</span></div><div class="logo-sub">Seri Dağıtım Motoru v6.4 — Online</div></div>
 <div class="hs" id="hs" style="display:none">
 <div class="hsi"><div class="hv" id="h1">0</div><div class="hl">Toplam</div></div>
 <div class="hsi"><div class="hv" id="h2">0</div><div class="hl">Depodan</div></div>
@@ -164,7 +164,7 @@ td{color:#1f2937;font-weight:400}
 <div class="legend"><div class="legend-t">Mağaza Sırası</div>
 <span class="lsb" style="background:#d1fae5;border:1px solid #6ee7b7"><span class="rd r1"></span>1.İzmir</span><span class="lsb" style="background:#cffafe;border:1px solid #67e8f9"><span class="rd r2"></span>2.Gordion</span><span class="lsb" style="background:#ede9fe;border:1px solid #c4b5fd"><span class="rd r3"></span>3.Panora</span><span class="lsb" style="background:#ffedd5;border:1px solid #fdba74"><span class="rd r4"></span>4.MOİ</span><span class="lsb" style="background:#fce7f3;border:1px solid #f9a8d4"><span class="rd r5"></span>5.Bursa</span><span class="lsb" style="background:#fef3c7;border:1px solid #fde68a"><span class="rd r6"></span>6.Next</span><span class="lsb" style="background:#fee2e2;border:1px solid #fca5a5"><span class="rd r7"></span>7.Emaar</span><span class="lsb" style="background:#f3f4f6;border:1px solid #d1d5db"><span class="rd r8"></span>8.Capacity</span>
 </div>
-<div class="tw"><table><thead><tr><th>KATEGORİ</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>STOK</th><th>SEZON</th><th>TAKIM</th><th>MAĞAZA</th><th>TRANSFER</th><th>NEDEN</th></tr></thead><tbody id="tb1"></tbody></table><div class="pg" id="pg1"></div></div>
+<div class="tw"><table><thead><tr><th>KATEGORİ</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>STOK</th><th>SEZON</th><th>TAKIM</th><th>MAĞAZA</th><th>TRANSFER</th><th>GÜVEN</th><th>NEDEN</th></tr></thead><tbody id="tb1"></tbody></table><div class="pg" id="pg1"></div></div>
 </div>
 <div id="pMag" class="hid"><div class="al al-i">🔄 Dengeli dağıtım: mağazalar arası beden tamamlama</div><div class="tw"><table><thead><tr><th>GÖNDEREN</th><th>KATEGORİ</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>SEZON</th><th>TAKIM</th><th>TRANSFER</th><th>NEDEN</th></tr></thead><tbody id="tb2"></tbody></table><div class="pg" id="pg2"></div></div></div>
 <div id="pTek" class="hid"><div class="al al-w">⚠️ Tek beden kırık ürünler</div><div class="tw"><table><thead><tr><th>MAĞAZA</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>ÖNERİ</th></tr></thead><tbody id="tb3"></tbody></table><div class="pg" id="pg3"></div></div></div>
@@ -292,8 +292,190 @@ function analyze(){
   const dpO=new Set(BI.filter(d=>d.bc<=2).map(d=>d.k+'|||'+d.rn));
   const dc={},gc2={},rc={};ST.forEach(s=>{dc[s.k]=0;gc2[s.k]=0;rc[s.k]=0});
 
-  // DEPO→MAĞAZA BALANCED
-  for(const[pk,p]of Object.entries(CM)){if(dpO.has(pk))continue;for(const[b,q]of Object.entries(p.sz)){if(q<=0)continue;const needs=[];for(const s of ST){if(dc[s.k]>=40)continue;const sp2=SM[s.k]?.[pk];if(!sp2||!Object.values(sp2.sz).some(x=>x.sa>0))continue;const sd=sp2.sz[b];if(sd&&sd.s>0)continue;const sold=sd&&sd.sa>0;needs.push({l:s.l,k:s.k,r:s.r,score:(sold?1000:0)+Object.values(sp2.sz).reduce((a,x)=>a+x.sa,0)*10+(10-s.r),rs:sold?'Satıp biten':'Beden tamamlama'})}if(!needs.length)continue;needs.sort((a,b)=>(dc[a.k]-dc[b.k])||(b.score-a.score));let rm=q;const di=[];for(const n of needs){if(rm<=0)break;di.push({l:n.l,k:n.k,r:n.r,q:1,rs:n.rs});rm--;dc[n.k]++}if(!di.length)continue;const sts=ST.map(s=>{const d=SM[s.k]?.[pk]?.sz[b];return d?{l:s.l,r:s.r,s:d.s,sa:d.sa}:null}).filter(Boolean);DT.push({c:p.m.c,g:p.m.g,k:p.m.k,a:p.m.a,rn:p.m.rn,b,ms:q,di,sts,rs:di[0]?.rs||'',sk:p.m.sk,sn:p.m.sn,tk:p.m.tk})}}
+  // ===========================================================================
+  // SERİ DAĞITIM MOTORU v6.4 — DEPO→MAĞAZA
+  // 7 Kural: Tam seri / Yarım seri (min 3 beden) / Esnek 3 beden istisnası /
+  //           Yığılma önleme / Stratejik mağaza desteği / Artan rotate / Güven skoru
+  // ===========================================================================
+  const MIN_SIZES=3,MAX_QTY_PER_STORE=5,TOP_STORES_FOR_ALT=5;
+  const DOMINANT_SALES_RATIO=2.0,BIG_STOCK_THRESHOLD=15;
+  const STRATEGIC_STORES=['NEXT','EMAAR'];
+  const globalLoad={};ST.forEach(s=>globalLoad[s.k]=0);
+
+  function allocateSeri(central,storeSales){
+    const valid=Object.entries(central).filter(([b,s])=>s>0).map(([b])=>b);
+    if(!valid.length)return{alloc:{},reasons:[],conf:0};
+    const totalStock=Object.values(central).reduce((a,b)=>a+b,0);
+    const reasons=[];
+    
+    // Mağazaları satış DESC (rank tiebreaker)
+    const sellers=Object.entries(storeSales)
+      .map(([k,sz])=>({k,sales:Object.values(sz).reduce((a,b)=>a+b,0)}))
+      .filter(x=>x.sales>0)
+      .sort((a,b)=>b.sales-a.sales||(ST.find(x=>x.k===a.k)?.r||99)-(ST.find(x=>x.k===b.k)?.r||99));
+    
+    let sellerList=sellers.map(s=>s.k);
+    if(!sellerList.length){
+      const allS=ST.slice().sort((a,b)=>(globalLoad[a.k]||0)-(globalLoad[b.k]||0)||a.r-b.r);
+      sellerList=allS.slice(0,2).map(s=>s.k);
+      reasons.push('⚠ Hiç satan yok — rank/yük');
+    }
+    
+    // Esnek 3 beden kuralı
+    if(valid.length<MIN_SIZES&&sellers.length>=1){
+      const top=sellers[0],second=sellers[1];
+      const ts=top.sales,ss=second?second.sales:0;
+      if(ts>=DOMINANT_SALES_RATIO*ss&&ts>=3){
+        const a={};a[top.k]={};valid.forEach(b=>a[top.k][b]=central[b]);
+        reasons.push(`✅ Az bedenli (${valid.length})+${top.k} açık ara lider (${ts}vs${ss})`);
+        return{alloc:a,reasons,conf:95};
+      }
+    }
+    
+    // Stratejik mağazalar (büyük stok + sadece yarım seri)
+    let strategicHalf=[];
+    if(totalStock>=BIG_STOCK_THRESHOLD){
+      for(const s of STRATEGIC_STORES)if(!sellerList.includes(s))strategicHalf.push(s);
+      if(strategicHalf.length)reasons.push(`🎯 Büyük stok (${totalStock})→stratejik: ${strategicHalf.join(',')}`);
+    }
+    
+    const alloc={};const remaining={...central};
+    
+    // TAM SERİ (sadece satış yapanlar)
+    const minStock=Math.min(...valid.map(b=>central[b]));
+    const fullCount=Math.min(minStock,sellerList.length);
+    if(fullCount>0)reasons.push(`📦 Tam seri: ${sellerList.slice(0,fullCount).join(',')} (min ${minStock})`);
+    for(let i=0;i<fullCount;i++){
+      const s=sellerList[i];alloc[s]={};valid.forEach(b=>alloc[s][b]=0);
+      for(const b of valid){alloc[s][b]+=1;remaining[b]-=1;}
+    }
+    
+    // YARIM SERİ (önce atlanan satıcılar, sonra stratejik)
+    const halfQueue=sellerList.slice(fullCount).concat(strategicHalf);
+    while(halfQueue.length){
+      const remSz=valid.filter(b=>remaining[b]>0);
+      if(remSz.length<MIN_SIZES)break;
+      const st=halfQueue.shift();
+      if(!alloc[st]){alloc[st]={};valid.forEach(b=>alloc[st][b]=0);}
+      const given=[];
+      for(const b of remSz)if(remaining[b]>0){alloc[st][b]+=1;remaining[b]-=1;given.push(b);}
+      if(given.length)reasons.push(`🔹 Yarım seri: ${st} (${given.join(',')})`);
+    }
+    
+    // ARTAN
+    let assigned=Object.keys(alloc).filter(s=>Object.values(alloc[s]).reduce((a,b)=>a+b,0)>0);
+    let remTotal=Object.values(remaining).reduce((a,b)=>a+b,0);
+    
+    if(assigned.length===1&&remTotal>=3){
+      const pool=ST.filter(s=>s.r<=TOP_STORES_FOR_ALT&&s.k!==assigned[0])
+        .sort((a,b)=>(globalLoad[a.k]||0)-(globalLoad[b.k]||0)||a.r-b.r);
+      if(pool.length){
+        const sec=pool[0].k;
+        if(!alloc[sec]){alloc[sec]={};valid.forEach(b=>alloc[sec][b]=0);}
+        assigned.push(sec);
+        reasons.push(`⚖ Yığılma önleme: ${sec}`);
+      }
+    }
+    if(remTotal>0&&assigned.length){
+      let ri=0;
+      for(const b of valid){
+        while(remaining[b]>0){
+          alloc[assigned[ri%assigned.length]][b]+=1;remaining[b]-=1;ri++;
+        }
+      }
+    }
+    
+    // Yük dengeleme
+    const totals={};for(const s of Object.keys(alloc))totals[s]=Object.values(alloc[s]).reduce((a,b)=>a+b,0);
+    const sortedLoad=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
+    if(sortedLoad.length){
+      const[biggest,bq]=sortedLoad[0];
+      if(bq>MAX_QTY_PER_STORE&&assigned.length===1){
+        const pool=ST.filter(s=>s.r<=TOP_STORES_FOR_ALT&&s.k!==biggest)
+          .sort((a,b)=>(globalLoad[a.k]||0)-(globalLoad[b.k]||0)||a.r-b.r);
+        if(pool.length){
+          const tgt=pool[0].k;
+          if(!alloc[tgt]){alloc[tgt]={};valid.forEach(b=>alloc[tgt][b]=0);}
+          const toMove=Math.floor((bq-MAX_QTY_PER_STORE+1)/2)+Math.floor((bq-MAX_QTY_PER_STORE)/2);
+          let moved=0;
+          const sortSz=valid.slice().sort((a,b)=>alloc[biggest][b]-alloc[biggest][a]);
+          for(const b of sortSz){
+            while(alloc[biggest][b]>=2&&moved<toMove){
+              alloc[biggest][b]-=1;alloc[tgt][b]+=1;moved++;
+            }
+          }
+          if(moved>0)reasons.push(`⚖ Yük dengeleme: ${biggest}→${tgt} (${moved})`);
+        }
+      }
+    }
+    
+    // Sıfırları temizle
+    const clean={};
+    for(const s of Object.keys(alloc)){
+      const sz={};for(const[b,q]of Object.entries(alloc[s]))if(q>0)sz[b]=q;
+      if(Object.keys(sz).length)clean[s]=sz;
+    }
+    
+    let conf=85;
+    if(sellers.length===0)conf=40;
+    else if(sellers.length<2)conf=60;
+    else if(valid.length<MIN_SIZES)conf=70;
+    else conf=90;
+    return{alloc:clean,reasons,conf};
+  }
+
+  // Ürün+renk için merkez stoğunu ve mağaza satışlarını hazırla, dağıt
+  // Sonra her beden için ayrı DT satırı oluştur (mevcut UI ile uyumlu)
+  // Stok büyüğüne göre sırala (yük dengelemesi için kritik)
+  const productList=Object.entries(CM)
+    .map(([pk,p])=>({pk,p,total:Object.values(p.sz).reduce((a,b)=>a+b,0)}))
+    .filter(x=>x.total>0&&!dpO.has(x.pk))
+    .sort((a,b)=>b.total-a.total);
+  
+  for(const{pk,p}of productList){
+    const central={...p.sz};
+    const storeSales={};
+    for(const s of ST){
+      const sp=SM[s.k]?.[pk];
+      if(!sp)continue;
+      storeSales[s.k]={};
+      for(const[b,v]of Object.entries(sp.sz))storeSales[s.k][b]=v.sa||0;
+    }
+    
+    const result=allocateSeri(central,storeSales);
+    if(!result.alloc||!Object.keys(result.alloc).length)continue;
+    
+    // Global yükü güncelle
+    for(const[s,sz]of Object.entries(result.alloc)){
+      globalLoad[s]=(globalLoad[s]||0)+Object.values(sz).reduce((a,b)=>a+b,0);
+    }
+    
+    // Her beden için DT satırı (mevcut UI uyumlu)
+    // Her bedende: o bedeni alan tüm mağazalar listelenir
+    for(const[b,bedQty]of Object.entries(central)){
+      if(bedQty<=0)continue;
+      const di=[];
+      for(const[storeK,sizes]of Object.entries(result.alloc)){
+        if(sizes[b]&&sizes[b]>0){
+          const stRef=ST.find(x=>x.k===storeK);
+          if(stRef)di.push({l:stRef.l,k:stRef.k,r:stRef.r,q:sizes[b],rs:'Seri Dağıtım v6.4'});
+        }
+      }
+      if(!di.length)continue;
+      const sts=ST.map(s=>{
+        const d=SM[s.k]?.[pk]?.sz[b];
+        return d?{l:s.l,r:s.r,s:d.s,sa:d.sa}:null;
+      }).filter(Boolean);
+      DT.push({
+        c:p.m.c,g:p.m.g,k:p.m.k,a:p.m.a,rn:p.m.rn,b,
+        ms:bedQty,di,sts,
+        rs:result.reasons.length?result.reasons[0]:'Seri dağıtım',
+        reasons:result.reasons,
+        conf:result.conf,
+        sk:p.m.sk,sn:p.m.sn,tk:p.m.tk
+      });
+    }
+  }
 
   // MAĞAZA→MAĞAZA BALANCED
   const allPK=new Set([...Object.keys(CM),...Object.values(SM).flatMap(m=>Object.keys(m))]);
@@ -336,7 +518,7 @@ function ch(c){return c?`<span class="ct ${c.s}">${c.l}</span>`:'';}
 function pL(k){return`<span class="prod-link" onclick="showImg('${k}')">${k}</span>`}
 function tkBadge(v){return v==='Takım'?'<span class="badge bg" style="font-size:7px">Takım</span>':'<span class="badge bm" style="font-size:7px">Tek</span>'}
 
-function rD(){const f=gf(DT,'d'),p=pp.depo,sl=f.slice((p-1)*PS,p*PS),tb=$('tb1');tb.innerHTML='';if(!sl.length){tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:16px;color:var(--mt)">Sonuç yok</td></tr>';rPg('depo',f.length);return}for(const t of sl){const sH=t.sts.map(s=>`<span title="${s.l} S:${s.s} Sat:${s.sa}" style="display:inline-flex;align-items:center;gap:1px;font-family:var(--fm);font-size:7px;padding:0 2px;border-radius:2px;background:${s.s>0?'#d1fae5':'#fee2e2'};border:1px solid ${s.s>0?'#6ee7b7':'#fca5a5'}"><span class="rd r${s.r}" style="width:3px;height:3px"></span>${s.s>0?s.s:'✗'}</span>`).join('');const dH=t.di.map(d=>`<span class="chip"><span class="rd r${d.r}" style="width:3px;height:3px"></span>${d.q}ad.${d.l}</span>`).join(' ');const r=document.createElement('tr');r.innerHTML=`<td>${ch(t.c)}</td><td><span class="badge bm">${t.g||'-'}</span></td><td style="font-weight:600;color:#111">${t.a}</td><td>${pL(t.k)}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.rn}</td><td style="font-family:var(--fm);font-weight:700">${t.b}</td><td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.ms}</td><td style="font-size:7px;color:var(--mt)">${t.sk||''}</td><td>${tkBadge(t.tk)}</td><td>${sH}</td><td>${dH}</td><td style="font-size:7px;color:var(--mt);font-style:italic">${t.rs}</td>`;tb.appendChild(r)}rPg('depo',f.length);updateDash()}
+function rD(){const f=gf(DT,'d'),p=pp.depo,sl=f.slice((p-1)*PS,p*PS),tb=$('tb1');tb.innerHTML='';if(!sl.length){tb.innerHTML='<tr><td colspan="13" style="text-align:center;padding:16px;color:var(--mt)">Sonuç yok</td></tr>';rPg('depo',f.length);return}for(const t of sl){const sH=t.sts.map(s=>`<span title="${s.l} S:${s.s} Sat:${s.sa}" style="display:inline-flex;align-items:center;gap:1px;font-family:var(--fm);font-size:7px;padding:0 2px;border-radius:2px;background:${s.s>0?'#d1fae5':'#fee2e2'};border:1px solid ${s.s>0?'#6ee7b7':'#fca5a5'}"><span class="rd r${s.r}" style="width:3px;height:3px"></span>${s.s>0?s.s:'✗'}</span>`).join('');const dH=t.di.map(d=>`<span class="chip"><span class="rd r${d.r}" style="width:3px;height:3px"></span>${d.q}ad.${d.l}</span>`).join(' ');const cf=t.conf||0;const cfColor=cf>=85?'var(--ok)':cf>=65?'var(--wr)':'var(--er)';const cfH=cf?`<span style="font-family:var(--fm);font-size:10px;font-weight:700;color:${cfColor}">%${cf}</span>`:'';const reasonsTxt=t.reasons?t.reasons.join(' • '):t.rs;const r=document.createElement('tr');r.innerHTML=`<td>${ch(t.c)}</td><td><span class="badge bm">${t.g||'-'}</span></td><td style="font-weight:600;color:#111">${t.a}</td><td>${pL(t.k)}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.rn}</td><td style="font-family:var(--fm);font-weight:700">${t.b}</td><td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.ms}</td><td style="font-size:7px;color:var(--mt)">${t.sk||''}</td><td>${tkBadge(t.tk)}</td><td>${sH}</td><td>${dH}</td><td>${cfH}</td><td style="font-size:7px;color:var(--mt);font-style:italic" title="${reasonsTxt}">${reasonsTxt}</td>`;tb.appendChild(r)}rPg('depo',f.length);updateDash()}
 
 function rM(){const f=gf(MT,'m'),p=pp.mag,sl=f.slice((p-1)*PS,p*PS),tb=$('tb2');tb.innerHTML='';if(!sl.length){tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:16px;color:var(--mt)">Sonuç yok</td></tr>';rPg('mag',f.length);return}for(const t of sl){const r=document.createElement('tr');r.innerHTML=`<td><span class="sb2"><span class="rd r${t.fr}"></span>${t.fl}</span></td><td>${ch(t.c)}</td><td><span class="badge bm">${t.g||'-'}</span></td><td style="font-weight:600;color:#111">${t.a}</td><td>${pL(t.k)}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.rn}</td><td style="font-family:var(--fm);font-weight:700">${t.b}</td><td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.st}</td><td style="font-size:7px;color:var(--mt)">${t.sk||''}</td><td>${tkBadge(t.tkm)}</td><td><span class="chip"><span class="rd r${t.tr}" style="width:3px;height:3px"></span>${t.st}ad.${t.tl}</span></td><td style="font-size:7px;color:var(--mt);font-style:italic">${t.rs}</td>`;tb.appendChild(r)}rPg('mag',f.length);updateDash()}
 
@@ -353,8 +535,8 @@ function rf(){$('fC').value='';$('fG').value='';$('fS').value='';$('fM').value='
 // EXCEL EXPORT — with extra columns
 function exAll(){
   const wb=XLSX.utils.book_new();
-  const d1=gf(DT,'d').map(t=>({'Kategori':t.c?.l||'','Alt Grup':t.g,'Ürün Adı':t.a,'Ürün Kodu':t.k,'Renk':t.rn,'Beden':t.b,'Depo Stok':t.ms,'Sezon Kodu':t.sk,'Sezon Açıklama':t.sn,'Takım':t.tk,'Gönderilecek Mağaza':t.di.map(d=>d.q+' ADET '+d.l.toUpperCase()).join(' - '),'Neden':t.rs}));
-  const ws1=XLSX.utils.json_to_sheet(d1);setColWidths(ws1,[10,14,22,20,12,6,6,10,24,10,40,16]);
+  const d1=gf(DT,'d').map(t=>({'Kategori':t.c?.l||'','Alt Grup':t.g,'Ürün Adı':t.a,'Ürün Kodu':t.k,'Renk':t.rn,'Beden':t.b,'Depo Stok':t.ms,'Sezon Kodu':t.sk,'Sezon Açıklama':t.sn,'Takım':t.tk,'Gönderilecek Mağaza':t.di.map(d=>d.q+' ADET '+d.l.toUpperCase()).join(' - '),'Güven %':t.conf||'','Neden':(t.reasons?t.reasons.join(' • '):t.rs)}));
+  const ws1=XLSX.utils.json_to_sheet(d1);setColWidths(ws1,[10,14,22,20,12,6,6,10,24,10,40,8,40]);
   XLSX.utils.book_append_sheet(wb,ws1,'Depo Transfer');
 
   const d2=gf(MT,'m').map(t=>({'Gönderen':t.fl,'Kategori':t.c?.l||'','Alt Grup':t.g,'Ürün Adı':t.a,'Ürün Kodu':t.k,'Renk':t.rn,'Beden':t.b,'Stok':t.st,'Mğz Giriş':t.gdt||'','Sezon Kodu':t.sk,'Sezon Açıklama':t.sn,'Takım':t.tkm,'Gönderilecek':t.st+' ADET '+t.tl.toUpperCase(),'Neden':t.rs}));
