@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>UTOPIAN TRANSFER</title>
+<title>UTOPIAN TRANSFER v7</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a5f">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,569 +11,308 @@
 <meta name="apple-mobile-web-app-title" content="Transfer">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231e3a5f'/><text x='50' y='62' text-anchor='middle' font-size='40' font-weight='bold' fill='%23fbbf24'>UT</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
-:root{--bg:#f0f2f5;--sf:#fff;--sf2:#f8f9fb;--bd:#e2e5ea;--ac:#2563eb;--ac2:#7c3aed;--ok:#059669;--wr:#d97706;--er:#dc2626;--tx:#1a1a2e;--mt:#6b7280;--fb:'Inter',sans-serif;--fm:'JetBrains Mono',monospace}
-*{box-sizing:border-box;margin:0;padding:0}body{background:var(--bg);color:var(--tx);font-family:var(--fb)}
-header{background:#1e3a5f;padding:10px 20px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:300;box-shadow:0 1px 4px rgba(0,0,0,.1)}
-.logo{font-size:18px;font-weight:700;color:#fff}.logo span{color:#fbbf24}
-.logo-sub{font-size:8px;font-family:var(--fm);color:rgba(255,255,255,.6);letter-spacing:1px;text-transform:uppercase}
-.hs{margin-left:auto;display:flex;gap:16px}.hsi{text-align:right}.hv{font-family:var(--fm);font-size:14px;font-weight:600;color:#fbbf24}.hl{font-size:7px;color:rgba(255,255,255,.6);text-transform:uppercase}
-.layout{display:flex;height:calc(100vh - 46px)}
-.left{width:260px;min-width:260px;display:flex;flex-direction:column;border-right:1px solid var(--bd);background:var(--sf);overflow-y:auto}
-.img-actions{padding:6px 8px;background:#fffbeb;border-bottom:1px solid #fcd34d;display:flex;gap:4px;flex-wrap:wrap;justify-content:center}
-.img-actions.done{background:#d1fae5;border-color:#6ee7b7}
-.img-btn{padding:4px 8px;border-radius:4px;font-size:9px;cursor:pointer;border:1px solid #fcd34d;background:#fff;color:#92400e;font-family:var(--fb);font-weight:500}
-.img-btn:hover{background:#fef3c7}
-.img-btn.cached{border-color:#6ee7b7;color:#065f46;background:#d1fae5}
-.img-count{font-size:8px;color:var(--mt);text-align:center;padding:2px}
-.img-box{background:#f9fafb;min-height:210px;display:flex;align-items:center;justify-content:center;border-bottom:1px solid var(--bd);position:relative}
-.img-box img{max-width:100%;max-height:210px;object-fit:contain}
-.img-no{color:#9ca3af;font-size:11px;text-align:center;padding:16px}
-.img-kod{position:absolute;bottom:3px;left:5px;font-family:var(--fm);font-size:8px;color:#6b7280;background:rgba(255,255,255,.9);padding:1px 5px;border-radius:3px}
-.dash{padding:8px;flex:1;overflow-y:auto}
-.dash-title{font-size:10px;font-weight:700;color:var(--ac);margin-bottom:4px;text-transform:uppercase;letter-spacing:.5px}
-.dash-row{display:flex;justify-content:space-between;padding:3px 2px;font-size:10px;border-bottom:1px solid #f1f5f9}
-.dash-row .lbl{color:var(--tx)}.dash-row .val{font-family:var(--fm);font-weight:500;font-size:9px}
-.dash-section{margin-bottom:8px}.dash-total{font-weight:700;color:var(--ac)}
-.special{padding:8px;border-top:1px solid var(--bd)}
-.special-title{font-size:9px;font-weight:700;color:var(--ac2);margin-bottom:3px}
-.special textarea{width:100%;height:45px;background:var(--sf2);border:1px solid var(--bd);color:var(--tx);border-radius:5px;padding:5px;font-family:var(--fb);font-size:9px;resize:vertical;outline:none}
-.right{flex:1;overflow-y:auto}.container{max-width:1440px;margin:0 auto;padding:12px 16px}
-.upl-row{display:flex;gap:8px;margin-bottom:10px}
-.upl-box{flex:1;border:2px dashed var(--bd);border-radius:8px;padding:16px 10px;text-align:center;cursor:pointer;background:var(--sf)}
-.upl-box:hover{border-color:var(--ac)}.upl-box.ok{border-color:var(--ok);border-style:solid;background:#f0fdf4}
-.upl-ico{font-size:20px;margin-bottom:2px}.upl-t{font-size:11px;font-weight:600;margin-bottom:2px}.upl-s{font-size:8px;color:var(--mt)}
-input[type=file]{display:none}
-.btn{display:inline-flex;align-items:center;gap:3px;padding:5px 10px;border-radius:4px;font-family:var(--fb);font-size:10px;font-weight:500;cursor:pointer;border:none}
-.btn-p{background:var(--ac);color:#fff}.btn-g{background:var(--sf);color:var(--tx);border:1px solid var(--bd)}.btn-ok{background:var(--ok);color:#fff}
-.btn-run{background:linear-gradient(135deg,var(--ac),var(--ac2));color:#fff;font-weight:700;font-size:13px;padding:10px 24px;border-radius:8px}.btn-run:disabled{opacity:.4;cursor:default}
-.run-bar{display:flex;gap:12px;align-items:center;justify-content:center;margin-bottom:12px;padding:10px;background:var(--sf);border:1px solid var(--bd);border-radius:8px}
-.sg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px}
-.sc{background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:8px 10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-.scl{font-size:7px;color:var(--mt);text-transform:uppercase;letter-spacing:.5px;font-family:var(--fm)}.scv{font-family:var(--fm);font-size:17px;font-weight:600;color:var(--ac)}.scs{font-size:7px;color:var(--mt)}
-.tabs{display:flex;border-bottom:2px solid var(--bd);margin-bottom:8px;background:var(--sf);border-radius:6px 6px 0 0;overflow-x:auto}
-.tab{padding:8px 12px;font-size:10px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;color:var(--mt);margin-bottom:-2px;white-space:nowrap}
-.tab.active{color:var(--ac);border-bottom-color:var(--ac);font-weight:600}
-.filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;align-items:flex-end;background:var(--sf);padding:8px;border-radius:6px;border:1px solid var(--bd)}
-.fg{display:flex;flex-direction:column;gap:1px}.fl{font-size:7px;color:var(--mt);text-transform:uppercase;font-family:var(--fm)}
-select,input[type=text]{background:var(--sf2);border:1px solid var(--bd);color:var(--tx);padding:5px 6px;border-radius:4px;font-family:var(--fb);font-size:10px;outline:none;min-width:95px}
-.tw{background:var(--sf);border:1px solid var(--bd);border-radius:6px;overflow-x:auto;margin-bottom:12px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
-table{width:100%;border-collapse:collapse;font-size:10px}
-th{background:#dbeafe;padding:7px 6px;text-align:left;font-family:var(--fm);font-size:8px;font-weight:600;color:#1e3a5f;border-bottom:2px solid #93c5fd;white-space:nowrap;cursor:pointer;user-select:none}
-th:hover{background:#bfdbfe}
-td{padding:5px 6px;border-bottom:1px solid #f1f5f9;vertical-align:middle}
-tr:nth-child(even) td{background:#f8fafc}
-tr:hover td{background:#eff6ff}
-/* More prominent data rows */
-td{color:#1f2937;font-weight:400}
-
-.prod-link{cursor:pointer;color:var(--ac);text-decoration:underline dotted;font-family:var(--fm);font-size:9px}.prod-link:hover{color:var(--ac2)}
-.chip{display:inline-flex;align-items:center;gap:2px;background:#eff6ff;border:1px solid #bfdbfe;color:var(--ac);padding:1px 5px;border-radius:8px;font-family:var(--fm);font-size:8px;margin:1px;white-space:nowrap}
-.badge{display:inline-flex;padding:1px 5px;border-radius:6px;font-size:8px;font-family:var(--fm)}
-.by{background:#fef9c3;color:#a16207;border:1px solid #fde68a}.bg{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
-.br{background:#fee2e2;color:#991b1b;border:1px solid #fca5a5}.bm{background:#f3f4f6;color:#6b7280;border:1px solid #e5e7eb}
-.bb{background:#dbeafe;color:#1e40af;border:1px solid #93c5fd}
-.rd{width:5px;height:5px;border-radius:50%;display:inline-block}
-.r1{background:#059669}.r2{background:#0891b2}.r3{background:#7c3aed}.r4{background:#ea580c}.r5{background:#db2777}.r6{background:#d97706}.r7{background:#dc2626}.r8{background:#6b7280}
-.sb2{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:8px;font-size:8px;font-family:var(--fm);background:#f3f4f6;border:1px solid #e5e7eb}
-.legend{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;padding:6px 8px;background:var(--sf);border:1px solid var(--bd);border-radius:5px}
-.legend-t{width:100%;font-size:7px;color:var(--mt);text-transform:uppercase;font-family:var(--fm)}
-.lsb{display:inline-flex;align-items:center;gap:2px;padding:2px 5px;border-radius:8px;font-size:8px;font-family:var(--fm)}
-.pg{display:flex;gap:3px;justify-content:center;align-items:center;padding:6px}
-.pb{padding:3px 7px;border-radius:3px;background:var(--sf);border:1px solid var(--bd);color:var(--tx);cursor:pointer;font-family:var(--fm);font-size:9px}
-.pb:hover,.pb.ac{border-color:var(--ac);color:var(--ac);background:#eff6ff}.pb:disabled{opacity:.3}
-.pi{color:var(--mt);font-size:9px;font-family:var(--fm)}
-.st{background:var(--sf);border:1px solid var(--bd);border-radius:5px;padding:6px 10px;font-family:var(--fm);font-size:9px;color:var(--mt);margin-bottom:8px;display:flex;align-items:center;gap:5px}
-.sd2{width:5px;height:5px;border-radius:50%;background:var(--ok);animation:pls 2s infinite}@keyframes pls{0%,100%{opacity:1}50%{opacity:.4}}
-.al{padding:6px 8px;border-radius:5px;margin-bottom:6px;font-size:9px}
-.al-w{background:#fef9c3;border:1px solid #fde68a;color:#92400e}.al-i{background:#d1fae5;border:1px solid #6ee7b7;color:#065f46}
-.ct{display:inline-flex;padding:1px 4px;border-radius:3px;font-size:7px;font-family:var(--fm);font-weight:600}
-.ct-t{background:#dbeafe;color:#1e40af;border:1px solid #bfdbfe}.ct-d{background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd}
-.ct-c{background:#fce7f3;color:#9d174d;border:1px solid #f9a8d4}.ct-y{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
-.ct-k{background:#fef3c7;color:#92400e;border:1px solid #fde68a}
-.hid{display:none!important}
-::-webkit-scrollbar{width:4px;height:4px}::-webkit-scrollbar-track{background:#f1f5f9}::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px}
-@media(max-width:900px){.left{display:none}.sg{grid-template-columns:repeat(2,1fr)}}
-</style>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
+
 <header>
-<div><div class="logo">UTOPIAN <span>TRANSFER</span></div><div class="logo-sub">Seri Dağıtım Motoru v6.4 — Online</div></div>
-<div class="hs" id="hs" style="display:none">
-<div class="hsi"><div class="hv" id="h1">0</div><div class="hl">Toplam</div></div>
-<div class="hsi"><div class="hv" id="h2">0</div><div class="hl">Depodan</div></div>
-<div class="hsi"><div class="hv" id="h3">0</div><div class="hl">Mağazadan</div></div>
-<div class="hsi"><div class="hv" id="h4">0</div><div class="hl">Adet</div></div>
-</div>
+  <div class="hd-l">
+    <div class="logo">UTOPIAN <span>TRANSFER</span></div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v7.2 (Y26: 15 gün · Virman: 30 gün)</div>
+  </div>
+  <div class="hd-stats" id="hdStats" style="display:none">
+    <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
+    <div class="hd-st"><div class="hd-v" id="hsDepo">0</div><div class="hd-l">Depodan</div></div>
+    <div class="hd-st"><div class="hd-v" id="hsMag">0</div><div class="hd-l">Mağazadan</div></div>
+    <div class="hd-st"><div class="hd-v" id="hsAdet">0</div><div class="hd-l">Adet</div></div>
+  </div>
 </header>
+
 <div class="layout">
-<div class="left">
-  <div class="img-actions" id="imgAct">
-    <button class="img-btn" id="btnFolder" onclick="pickFolder()">📁 Klasör Seç</button>
-    <button class="img-btn" id="btnCache" onclick="cacheImages()" style="display:none">💾 Kaydet</button>
-    <button class="img-btn cached" id="btnCached" style="display:none">✅ Önbellekte</button>
+
+  <!-- SOL PANEL -->
+  <aside class="left">
+    <div class="img-actions" id="imgAct">
+      <button class="img-btn" id="btnFolder" onclick="UI.pickFolder()">📁 Klasör Seç</button>
+      <button class="img-btn" id="btnCache" onclick="UI.cacheImages()" style="display:none">💾 Kaydet</button>
+      <button class="img-btn cached" id="btnCached" style="display:none">✅ Önbellekte</button>
+    </div>
+    <div class="img-count" id="imgCnt"></div>
+    <div class="img-box">
+      <div class="img-no" id="imgNo">Ürün koduna tıklayın</div>
+      <img id="imgEl" style="display:none">
+      <div class="img-kod" id="imgKod"></div>
+    </div>
+    
+    <div class="dash">
+      <div class="dash-section">
+        <div class="dash-title">📊 Transfer Özeti</div>
+        <div id="dSum"><span class="muted">Analiz bekleniyor</span></div>
+      </div>
+      <div class="dash-section">
+        <div class="dash-title">🏪 Mağaza Dağılımı</div>
+        <div id="dStores"></div>
+      </div>
+      <div class="dash-section">
+        <div class="dash-title">🕘 Son İşlemler</div>
+        <div id="dHistory"><span class="muted">Henüz kayıt yok</span></div>
+      </div>
+    </div>
+    
+    <div class="special">
+      <div class="special-title">📝 Özel Talep</div>
+      <textarea id="specReq" placeholder="Örn: ...Mağazadan ... ürün al gönder..."></textarea>
+    </div>
+  </aside>
+
+  <!-- SAĞ İÇERİK -->
+  <main class="right">
+    <div class="container">
+
+      <!-- YÜKLEME EKRANI -->
+      <div id="uploadSection">
+        <div class="upl-row">
+          <div class="upl-box" id="u1" onclick="document.getElementById('f1').click()">
+            <div class="upl-ico">📦</div>
+            <div class="upl-t">Nebim Satış &amp; Envanter</div>
+            <div class="upl-s">TreeListColumn raporu (.xlsx)</div>
+            <button class="btn btn-p" onclick="event.stopPropagation();document.getElementById('f1').click()">Dosya Seç</button>
+            <input type="file" id="f1" accept=".xlsx,.xls" onchange="DATA.loadNebim(event)">
+            <div id="ds" class="upl-status"></div>
+          </div>
+          
+          <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()">
+            <div class="upl-ico">👔</div>
+            <div class="upl-t">Takım Bilgisi &amp; Mal Grubu</div>
+            <div class="upl-s">Bir kez yüklenir, hep saklanır</div>
+            <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f2').click()">Dosya Seç</button>
+            <input type="file" id="f2" accept=".xlsx,.xls" onchange="DATA.loadTakim(event)">
+            <div id="ts" class="upl-status"></div>
+          </div>
+          
+          <div class="upl-box" id="u3" onclick="document.getElementById('f3').click()">
+            <div class="upl-ico">📋</div>
+            <div class="upl-t">Transfer Performans (Opsiyonel)</div>
+            <div class="upl-s">Mağaza Transfer İrsaliyesi (.xlsx)</div>
+            <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f3').click()">Dosya Seç</button>
+            <input type="file" id="f3" accept=".xlsx,.xls" onchange="DATA.loadIrsaliye(event)">
+            <div id="is" class="upl-status"></div>
+          </div>
+        </div>
+
+        <div class="run-bar">
+          <button class="btn-run" id="bRun" disabled onclick="ALGO.runAnalysis()">🚀 Transfer Analizi Başlat</button>
+          <div id="rSt" class="muted">Önce Nebim datasını yükleyin</div>
+        </div>
+
+        <!-- Geçmiş Listesi -->
+        <div class="history-section" id="historyList">
+          <div class="hist-title">📚 Önceki Transfer Çalışmaları</div>
+          <div id="histItems"><span class="muted">Henüz kayıt yok. İlk transferinizi yapın!</span></div>
+        </div>
+      </div>
+
+      <!-- ANA UYGULAMA -->
+      <div id="app" class="hidden">
+        <div class="status-bar">
+          <div class="status-pulse"></div>
+          <span id="stTxt"></span>
+          <span class="muted" style="margin-left:auto" id="stHistory"></span>
+        </div>
+
+        <!-- ÖZET KARTLARI -->
+        <div class="summary-grid">
+          <div class="sm-card"><div class="sm-l">Merkez Depo</div><div class="sm-v" id="s1">0</div><div class="sm-s">Stok</div></div>
+          <div class="sm-card"><div class="sm-l">Depo→Mağaza</div><div class="sm-v" id="s2">0</div><div class="sm-s">Transfer</div></div>
+          <div class="sm-card"><div class="sm-l">Mağaza→Mağaza</div><div class="sm-v" id="s3">0</div><div class="sm-s">Transfer</div></div>
+          <div class="sm-card"><div class="sm-l">Kırık Beden</div><div class="sm-v" id="s4">0</div><div class="sm-s">Toplama</div></div>
+          <div class="sm-card"><div class="sm-l">Yeni Sezon Y26</div><div class="sm-v" id="s5">0</div><div class="sm-s">Adet</div></div>
+          <div class="sm-card"><div class="sm-l">Virman</div><div class="sm-v" id="s6">0</div><div class="sm-s">Adet</div></div>
+        </div>
+
+        <!-- TABLOLAR -->
+        <div class="tabs">
+          <div class="tab active" onclick="UI.switchTab('depo')">📦 Depo Transfer <span class="badge by" id="tcDepo"></span></div>
+          <div class="tab" onclick="UI.switchTab('mag')">🔄 Mağaza Arası <span class="badge by" id="tcMag"></span></div>
+          <div class="tab" onclick="UI.switchTab('kirik')">⚠️ Kırık Beden <span class="badge by" id="tcKirik"></span></div>
+          <div class="tab" onclick="UI.switchTab('bek')">🔍 Bekleyen <span class="badge by" id="tcBek"></span></div>
+          <div class="tab" onclick="UI.switchTab('hata')">❌ Hatalı Tarih <span class="badge br" id="tcHata"></span></div>
+          <div class="tab" onclick="UI.switchTab('env')">📊 Envanter</div>
+          <div class="tab" onclick="UI.switchTab('perf')">🎯 Performans</div>
+        </div>
+
+        <!-- FİLTRELER -->
+        <div class="filters">
+          <div class="fg"><div class="fl">Sezon</div>
+            <select id="fSezon" onchange="UI.applyFilters()">
+              <option value="">Tümü</option>
+              <option value="YENI">Yeni Sezon (Y26)</option>
+              <option value="VIRMAN">Virman</option>
+            </select>
+          </div>
+          <div class="fg"><div class="fl">Kategori</div>
+            <select id="fKategori" onchange="UI.applyFilters()">
+              <option value="">Tümü</option>
+              <option value="TEKSTİL">Tekstil</option>
+              <option value="DIŞ GİYİM">Dış Giyim</option>
+              <option value="ÇANTA">Çanta</option>
+              <option value="KEMER">Kemer</option>
+              <option value="AYAKKABI">Ayakkabı</option>
+              <option value="AKSESUAR">Aksesuar</option>
+            </select>
+          </div>
+          <div class="fg"><div class="fl">Alt Grup</div>
+            <select id="fAltGrup" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
+          </div>
+          <div class="fg"><div class="fl">Takım</div>
+            <select id="fTakim" onchange="UI.applyFilters()">
+              <option value="">Tümü</option>
+              <option value="TAKIM">Takım Ürün</option>
+              <option value="DEGIL">Takım Değil</option>
+            </select>
+          </div>
+          <div class="fg"><div class="fl">Hedef Mağaza</div>
+            <select id="fHedef" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
+          </div>
+          <div class="fg"><div class="fl">Gönderen</div>
+            <select id="fGonderen" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
+          </div>
+          <div class="fg"><div class="fl">Ara (Kod / Ad)</div>
+            <input type="text" id="fSearch" placeholder="..." oninput="UI.applyFilters()">
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-g" onclick="UI.resetFilters()">↺ Sıfırla</button>
+            <button class="btn btn-ok" onclick="DATA.exportExcel()">⬇ Excel İndir</button>
+          </div>
+        </div>
+
+        <!-- MAĞAZA SIRA LEGENDİ -->
+        <div class="legend">
+          <span class="lg-t">YTD Sıralama:</span>
+          <span class="lg-b r1">1.İzmir</span>
+          <span class="lg-b r2">2.Gordion</span>
+          <span class="lg-b r3">3.Panora</span>
+          <span class="lg-b r4">4.MOİ</span>
+          <span class="lg-b r5">5.Bursa</span>
+          <span class="lg-b r6">6.Next</span>
+          <span class="lg-b r7">7.Emaar</span>
+        </div>
+
+        <!-- TAB İÇERİKLERİ -->
+        <div id="pDepo" class="tab-content">
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>STOK</th><th>GİRİŞ</th><th>TAKIM</th>
+                <th>MAĞAZA DURUMU</th><th>TRANSFER ÖNERİSİ</th><th>SKOR</th><th>NEDEN</th>
+              </tr></thead>
+              <tbody id="tbDepo"></tbody>
+            </table>
+            <div class="pg" id="pgDepo"></div>
+          </div>
+        </div>
+
+        <div id="pMag" class="tab-content hidden">
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>GÖNDEREN</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>GİRİŞ</th>
+                <th>TAKIM</th><th>HEDEF</th><th>SKOR</th><th>NEDEN</th>
+              </tr></thead>
+              <tbody id="tbMag"></tbody>
+            </table>
+            <div class="pg" id="pgMag"></div>
+          </div>
+        </div>
+
+        <div id="pKirik" class="tab-content hidden">
+          <div class="alert alert-warn">⚠️ 1 adet kalmış renk-beden ürünleri — en iyi mağazada toplanacak</div>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>GÖNDEREN</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>HEDEF MAĞAZA</th><th>NEDEN</th>
+              </tr></thead>
+              <tbody id="tbKirik"></tbody>
+            </table>
+            <div class="pg" id="pgKirik"></div>
+          </div>
+        </div>
+
+        <div id="pBek" class="tab-content hidden">
+          <div class="alert alert-info">🔍 Depoda bekleyen, hiçbir mağazaya gitmemiş ürünler</div>
+          <button class="btn btn-ok" onclick="DATA.exportBekleyen()">⬇ Bekleyen Listesi İndir</button>
+          <div class="tw" style="margin-top:8px">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>ÜRÜN KODU</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>RENK</th><th>BD.</th><th>ADET</th><th>BEDENLER</th><th>DURUM</th>
+              </tr></thead>
+              <tbody id="tbBek"></tbody>
+            </table>
+            <div class="pg" id="pgBek"></div>
+          </div>
+        </div>
+
+        <div id="pHata" class="tab-content hidden">
+          <div class="alert alert-error">❌ Mağaza Giriş Tarihi <b>1.1.1900</b> olan kayıtlar — Nebim'de hatalı kayıt, transfere dahil EDİLMEDİ</div>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>DEPO</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
+                <th>TARİH</th><th>STOK</th><th>SATIŞ</th><th>SEBEP</th>
+              </tr></thead>
+              <tbody id="tbHata"></tbody>
+            </table>
+            <div class="pg" id="pgHata"></div>
+          </div>
+        </div>
+
+        <div id="pEnv" class="tab-content hidden">
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>MAĞAZA</th><th>#</th><th>STOK</th><th>SATIŞ</th>
+                <th>PERFORMANS</th><th>BD.EKSİK</th>
+                <th class="ok">DEPO↓</th><th class="ok">MĞZ↓</th><th class="er">GİDEN↑</th><th>NET</th>
+              </tr></thead>
+              <tbody id="tbEnv"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pPerf" class="tab-content hidden">
+          <div class="alert alert-info">🎯 Transfer Performans Raporu — Önerilen vs. Gerçek Çıkış</div>
+          <div id="perfContent">
+            <div class="muted" style="padding:20px;text-align:center">
+              Performans raporu için <b>Mağaza Transfer İrsaliyesi Kontrol Listesi</b> dosyası yükleyin.<br>
+              <small>Ana ekranda 3. yükleme kutusunu kullanın.</small>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="hidden">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div id="loadingTxt">Hesaplanıyor...</div>
   </div>
-  <div class="img-count" id="imgCnt"></div>
-  <div class="img-box"><div class="img-no" id="imgNo">Ürün koduna tıklayın</div><img id="imgEl" style="display:none"><div class="img-kod" id="imgKod"></div></div>
-  <div class="dash">
-    <div class="dash-section"><div class="dash-title">📊 Transfer Özeti</div><div id="dSum"><span style="color:var(--mt);font-size:9px">Analiz bekleniyor</span></div></div>
-    <div class="dash-section"><div class="dash-title">🏪 Mağaza Dağılımı</div><div id="dSt"></div></div>
-  </div>
-  <div class="special"><div class="special-title">📝 Özel Talep</div><textarea id="specReq" placeholder="Örn: Capacity kapanıyor, stokları dağıt..."></textarea></div>
-</div>
-<div class="right"><div class="container">
-<div id="uSec">
-<div class="upl-row">
-<div class="upl-box" id="u1" onclick="$('f1').click()"><div class="upl-ico">📦</div><div class="upl-t">Nebim Satış & Envanter</div><div class="upl-s">Excel yükle</div><div style="margin-top:4px"><button class="btn btn-p" onclick="event.stopPropagation();$('f1').click()">Dosya Seç</button></div><input type="file" id="f1" accept=".xlsx,.xls" onchange="loadData(event)"><div id="ds" style="margin-top:3px;font-size:8px;color:var(--mt)"></div></div>
-<div class="upl-box" id="u2" onclick="$('f2').click()"><div class="upl-ico">👔</div><div class="upl-t">Takım Bilgisi</div><div class="upl-s">Opsiyonel</div><div style="margin-top:4px"><button class="btn btn-g" onclick="event.stopPropagation();$('f2').click()">Dosya Seç</button></div><input type="file" id="f2" accept=".xlsx,.xls" onchange="loadTakim(event)"><div id="ts" style="margin-top:3px;font-size:8px;color:var(--mt)"></div></div>
-</div>
-<div class="run-bar"><button class="btn btn-run" id="bRun" disabled onclick="run()">🚀 Transfer Analizi Başlat</button><div id="rSt" style="font-size:10px;color:var(--mt)">Nebim datasını yükleyin</div></div>
-</div>
-<div id="app" class="hid">
-<div class="st"><div class="sd2"></div><span id="stTxt"></span></div>
-<div class="sg">
-<div class="sc"><div class="scl">Merkez Depo</div><div class="scv" id="s1">0</div><div class="scs">Stok</div></div>
-<div class="sc"><div class="scl">Depo→Mağaza</div><div class="scv" id="s2">0</div><div class="scs">Transfer</div></div>
-<div class="sc"><div class="scl">Mağaza→Mağaza</div><div class="scv" id="s3">0</div><div class="scs">Transfer</div></div>
-<div class="sc"><div class="scl">Tek Beden</div><div class="scv" id="s4">0</div><div class="scs">Kırık</div></div>
-<div class="sc"><div class="scl">Toplam</div><div class="scv" id="s5">0</div><div class="scs">Adet</div></div>
-</div>
-<div class="tabs">
-<div class="tab active" onclick="sw('depo')">📦 Depo <span class="badge by" id="tc1"></span></div>
-<div class="tab" onclick="sw('mag')">🔄 Mağaza <span class="badge by" id="tc2"></span></div>
-<div class="tab" onclick="sw('tek')">⚠️ Tek Beden</div>
-<div class="tab" onclick="sw('bek')">🔍 Bekleyen</div>
-<div class="tab" onclick="sw('env')">📊 Envanter</div>
-</div>
-<div class="filters">
-<div class="fg"><div class="fl">Kategori</div><select id="fC" onchange="af()"><option value="">Tümü</option><option value="TEKSTİL">Tekstil</option><option value="DIŞ GİYİM">Dış Giyim</option><option value="ÇANTA">Çanta</option><option value="KEMER">Kemer</option><option value="AYAKKABI">Ayakkabı</option></select></div>
-<div class="fg"><div class="fl">Alt Grup</div><select id="fG" onchange="af()"><option value="">Tümü</option></select></div>
-<div class="fg"><div class="fl">Takım</div><select id="fTk" onchange="af()"><option value="">Tümü</option><option value="TAKIM">Takım Ürün</option><option value="DEĞİL">Takım Değil</option></select></div>
-<div class="fg"><div class="fl">Ürün Ara</div><input type="text" id="fS" placeholder="Kod/ad..." oninput="af()"></div>
-<div class="fg"><div class="fl">Hedef</div><select id="fM" onchange="af()"><option value="">Tümü</option></select></div>
-<div class="fg"><div class="fl">Gönderen</div><select id="fFrom" onchange="af()"><option value="">Tümü</option></select></div>
-<div class="fg"><div class="fl">Sezon</div><select id="fSez" onchange="af()"><option value="">Tümü</option></select></div>
-<div style="margin-left:auto;display:flex;gap:3px">
-<button class="btn btn-g" onclick="rf()">↺</button>
-<button class="btn btn-ok" onclick="exAll()">⬇ Excel</button>
-</div>
 </div>
 
-<div id="pDepo">
-<div class="legend"><div class="legend-t">Mağaza Sırası</div>
-<span class="lsb" style="background:#d1fae5;border:1px solid #6ee7b7"><span class="rd r1"></span>1.İzmir</span><span class="lsb" style="background:#cffafe;border:1px solid #67e8f9"><span class="rd r2"></span>2.Gordion</span><span class="lsb" style="background:#ede9fe;border:1px solid #c4b5fd"><span class="rd r3"></span>3.Panora</span><span class="lsb" style="background:#ffedd5;border:1px solid #fdba74"><span class="rd r4"></span>4.MOİ</span><span class="lsb" style="background:#fce7f3;border:1px solid #f9a8d4"><span class="rd r5"></span>5.Bursa</span><span class="lsb" style="background:#fef3c7;border:1px solid #fde68a"><span class="rd r6"></span>6.Next</span><span class="lsb" style="background:#fee2e2;border:1px solid #fca5a5"><span class="rd r7"></span>7.Emaar</span><span class="lsb" style="background:#f3f4f6;border:1px solid #d1d5db"><span class="rd r8"></span>8.Capacity</span>
-</div>
-<div class="tw"><table><thead><tr><th>KATEGORİ</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>STOK</th><th>SEZON</th><th>TAKIM</th><th>MAĞAZA</th><th>TRANSFER</th><th>GÜVEN</th><th>NEDEN</th></tr></thead><tbody id="tb1"></tbody></table><div class="pg" id="pg1"></div></div>
-</div>
-<div id="pMag" class="hid"><div class="al al-i">🔄 Dengeli dağıtım: mağazalar arası beden tamamlama</div><div class="tw"><table><thead><tr><th>GÖNDEREN</th><th>KATEGORİ</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>SEZON</th><th>TAKIM</th><th>TRANSFER</th><th>NEDEN</th></tr></thead><tbody id="tb2"></tbody></table><div class="pg" id="pg2"></div></div></div>
-<div id="pTek" class="hid"><div class="al al-w">⚠️ Tek beden kırık ürünler</div><div class="tw"><table><thead><tr><th>MAĞAZA</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>ÖNERİ</th></tr></thead><tbody id="tb3"></tbody></table><div class="pg" id="pg3"></div></div></div>
-<div id="pBek" class="hid"><div class="al al-w">🔍 Depoda bekleyen, mağazaya gitmemiş</div><div style="margin-bottom:4px"><button class="btn btn-ok" onclick="exBek()">⬇ Bekleyen İndir</button></div><div class="tw"><table><thead><tr><th>ÜRÜN KODU</th><th>KATEGORİ</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>RENK</th><th>BD.</th><th>ADET</th><th>BEDENLER</th><th>DURUM</th></tr></thead><tbody id="tb4"></tbody></table><div class="pg" id="pg4"></div></div></div>
-<div id="pEnv" class="hid"><div class="tw"><table><thead><tr><th>MAĞAZA</th><th>#</th><th>STOK</th><th>SATIŞ</th><th>ORAN</th><th>BD.EKSİK</th><th style="color:var(--ok)">DEPO↓</th><th style="color:var(--ok)">MĞZ↓</th><th style="color:var(--er)">GİDEN↑</th><th>NET</th></tr></thead><tbody id="tb5"></tbody></table></div></div>
-</div></div></div></div>
+<!-- JS modülleri -->
+<script src="js/data.js"></script>
+<script src="js/algo.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/history.js"></script>
+<script src="js/perf.js"></script>
+<script src="js/init.js"></script>
 
-<script>
-const $=id=>document.getElementById(id);
-const ST=[{k:'İZMİR',l:'İzmir',r:1,p:['İZMİR','IZMIR','MAVİBAHÇE']},{k:'GORDİON',l:'Gordion',r:2,p:['GORDİON','GORDION']},{k:'PANORA',l:'Panora',r:3,p:['PANORA']},{k:'MOİ',l:'MOİ',r:4,p:['MOİ','MOI','MALL OF']},{k:'BURSA',l:'Bursa',r:5,p:['BURSA','MARKA']},{k:'NEXT',l:'Next Level',r:6,p:['NEXT LEVEL','NEXT','ANKARA UTOPIAN']},{k:'EMAAR',l:'Emaar',r:7,p:['EMAAR']},{k:'CAPACITY',l:'Capacity',r:8,p:['CAPACİTY','CAPACITY']}];
-const DP=['MERKEZ','1UTOPIAN','SHOWROOM'];
-const DIS=new Set(['DIŞ GİYİM','KABAN','MONT','DERİ MONT','TRENÇKOT','MANTO','KÜRK','DERİ KABAN','DERİ PARDESÜ','YAĞMURLUK-RÜZGARLIK']);
-const TAKI=new Set(['KÜPE','BİLEKLİK','KOLYE','YÜZÜK','BROŞ','TOKA','TAÇ','SAÇ AKSESUARI','FULAR','ŞAL','ATKI-ŞAL','BERE','ŞAPKA','ELDİVEN','FÖTER','MASKE','AKSESUAR']);
-const AYK=new Set(['AYAKKABI','BOT','ÇİZME','SNEAKER','SANDALET','LOAFER','TOPUKLU AYAKKABI']);
-const PS=50;let ct2='depo',pp={depo:1,mag:1,tek:1,bek:1};
-let RR=[],TKD=[],DT=[],MT=[],SI=[],BI=[];let SM={},CM={};
-let imgH={},folderOk=false,dbReady=false;
-// Takım lookup
-let takimLU={};
-
-// === IndexedDB IMAGE CACHE ===
-const DB_NAME='utopian_img',DB_VER=1;
-let db=null;
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=e=>{e.target.result.createObjectStore('images')};r.onsuccess=e=>{db=e.target.result;res(db)};r.onerror=e=>rej(e)})}
-async function saveImgToDB(key,blob){return new Promise((res,rej)=>{const tx=db.transaction('images','readwrite');tx.objectStore('images').put(blob,key);tx.oncomplete=()=>res();tx.onerror=e=>rej(e)})}
-async function getImgFromDB(key){return new Promise((res,rej)=>{const tx=db.transaction('images','readonly');const r=tx.objectStore('images').get(key);r.onsuccess=()=>res(r.result);r.onerror=e=>rej(e)})}
-async function countDB(){return new Promise((res)=>{const tx=db.transaction('images','readonly');const r=tx.objectStore('images').count();r.onsuccess=()=>res(r.result);r.onerror=()=>res(0)})}
-
-// Init DB and check cache
-(async()=>{try{await openDB();const c=await countDB();if(c>0){dbReady=true;$('imgCnt').textContent=c+' fotoğraf önbellekte';$('btnCached').style.display='inline-flex';$('btnCache').style.display='none'}}catch(e){console.warn('IndexedDB:',e)}})();
-
-async function pickFolder(){
-  try{
-    const dh=await window.showDirectoryPicker({mode:'read'});
-    imgH={};let cnt=0;
-    for await(const[name,handle]of dh.entries()){
-      if(handle.kind==='directory'){
-        for await(const[fn,fh]of handle.entries()){
-          if(fh.kind==='file'&&/\.(jpg|jpeg|png|webp)$/i.test(fn)){
-            imgH[name.toUpperCase()]=fh;
-            const base=name.replace(/-[A-Za-z]+$/,'');
-            if(base!==name)imgH[base.toUpperCase()]=fh;
-            cnt++;break;
-          }
-        }
-      }
-    }
-    folderOk=true;
-    $('imgCnt').textContent=cnt+' fotoğraf bulundu';
-    $('btnCache').style.display='inline-flex';
-    $('btnFolder').textContent='✅ Klasör yüklendi';
-  }catch(e){if(e.name!=='AbortError')alert(e.message)}
-}
-
-async function cacheImages(){
-  if(!folderOk||!db)return;
-  $('btnCache').textContent='💾 Kaydediliyor...';
-  let saved=0;
-  for(const[key,handle]of Object.entries(imgH)){
-    try{const f=await handle.getFile();const blob=await f.arrayBuffer();await saveImgToDB(key,blob);saved++}catch(e){}
-  }
-  dbReady=true;
-  $('imgCnt').textContent=saved+' fotoğraf kaydedildi';
-  $('btnCache').style.display='none';
-  $('btnCached').style.display='inline-flex';
-  $('imgAct').classList.add('done');
-}
-
-async function showImg(k){
-  const img=$('imgEl'),no=$('imgNo');$('imgKod').textContent=k;
-  const key=k.toUpperCase();
-
-  // Try IndexedDB first
-  if(dbReady&&db){
-    try{
-      let blob=await getImgFromDB(key);
-      if(!blob){for(const ik of Object.keys(imgH)){if(ik.startsWith(key)){blob=await getImgFromDB(ik);if(blob)break}}}
-      if(blob){const u=URL.createObjectURL(new Blob([blob]));img.onload=()=>URL.revokeObjectURL(u);img.src=u;img.style.display='block';no.style.display='none';return}
-    }catch(e){}
-  }
-
-  // Try live folder
-  if(folderOk){
-    let h=imgH[key];
-    if(!h){for(const[ik,ih]of Object.entries(imgH)){if(ik.startsWith(key)){h=ih;break}}}
-    if(h){try{const f=await h.getFile();const u=URL.createObjectURL(f);img.onload=()=>URL.revokeObjectURL(u);img.src=u;img.style.display='block';no.style.display='none';return}catch(e){}}
-  }
-
-  img.style.display='none';no.style.display='block';
-  no.innerHTML=dbReady||folderOk?'<b>GÖRSEL YOK</b>':'Klasör seçin veya<br>önbellek yükleyin';
-}
-
-function ms(n){const u=(n||'').toUpperCase();for(const p of DP)if(u.includes(p))return{k:'DEP',d:true};for(const s of ST)for(const p of s.p)if(u.includes(p))return s;return null}
-function gc(alt,ana){const a=(alt||'').toUpperCase().trim(),n=(ana||'').toUpperCase().trim();if(TAKI.has(n))return null;if(AYK.has(n))return{c:'AYAKKABI',l:'Ayakkabı',s:'ct-y'};if(n==='ÇANTA')return{c:'ÇANTA',l:'Çanta',s:'ct-c'};if(n==='KEMER')return{c:'KEMER',l:'Kemer',s:'ct-k'};if(DIS.has(a)||DIS.has(n))return{c:'DIŞ GİYİM',l:'Dış Giyim',s:'ct-d'};return{c:'TEKSTİL',l:'Tekstil',s:'ct-t'}}
-function fc(K,must,not){for(const k of K){const c=k.replace(/[\n\r\s]/g,'').toUpperCase();if(must.every(m=>c.includes(m))&&(!not||!not.some(n=>c.includes(n))))return k}return null}
-['u1','u2'].forEach(id=>{const e=$(id);e.addEventListener('dragover',ev=>ev.preventDefault());e.addEventListener('drop',ev=>{ev.preventDefault();if(ev.dataTransfer.files[0]){id==='u1'?pd(ev.dataTransfer.files[0]):pt(ev.dataTransfer.files[0])}})});
-function loadData(e){if(e.target.files[0])pd(e.target.files[0])}
-function loadTakim(e){if(e.target.files[0])pt(e.target.files[0])}
-function rx(f,cb){const r=new FileReader;r.onload=e=>{try{cb(null,XLSX.read(e.target.result,{type:'array'}))}catch(er){cb(er)}};r.readAsArrayBuffer(f)}
-
-function pd(f){$('ds').textContent='...';rx(f,(er,wb)=>{if(er){alert(er.message);return}const raw=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});const K=Object.keys(raw[0]||{});
-const cD=fc(K,['DEPO','ADI']),cK=fc(K,['ÜRÜN','KODU']),cA=fc(K,['ÜRÜN','ADI']),cR=fc(K,['RENK','AÇIKLAMA'])||fc(K,['RENK'],['KODU','BAZINDA']),cB=fc(K,['BEDEN'],['EKSIK']),cS=fc(K,['SATIŞ','MIKTAR']),cE=fc(K,['ENVANTER'],['TUTAR']),cAL=fc(K,['ALT','GRUP','AÇIKLAMA']),cAN=fc(K,['ANA','GRUP']),cGI=fc(K,['MAGAZAYA','GIRIS'])||fc(K,['MAGAZAGIRIS']),cSK=fc(K,['SEZONU','KODU']),cSA=fc(K,['SEZONU','AÇIKLAMA'])||fc(K,['SEZONU','ACIKLAMA']);
-RR=raw.map(r=>({d:String(r[cD]||''),k:String(r[cK]||''),a:String(r[cA]||''),rn:String(r[cR]||'STD'),b:String(r[cB]||'STD'),sa:Number(r[cS])||0,st:Number(r[cE])||0,al:String(r[cAL]||''),an:String(r[cAN]||''),gi:r[cGI]||'',sk:String(r[cSK]||''),sn:String(r[cSA]||'')})).filter(r=>r.d&&r.d!=='undefined');
-$('u1').classList.add('ok');$('ds').innerHTML=`✅ ${RR.length.toLocaleString('tr')} satır`;$('bRun').disabled=false;$('rSt').textContent='Hazır'})}
-
-function pt(f){rx(f,(er,wb)=>{if(er)return;const raw=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{defval:''});const K=Object.keys(raw[0]||{});
-TKD=raw.map(r=>{const g=ps=>{for(const p of ps){const k=K.find(k=>k.replace(/[\n\r\s]/g,'').toUpperCase().includes(p));if(k!==undefined)return r[k]}return''};return{d:String(g(['TAIMDURUMU','TAKIMDURUMU'])).trim(),t:String(g(['TAKIMKOD'])).trim(),u:String(g(['ÜRÜNKODU'])).trim()}}).filter(r=>r.d==='TAKIM'&&r.t!=='-');
-takimLU={};TKD.forEach(t=>{takimLU[t.u]=t.t});
-$('u2').classList.add('ok');$('ts').innerHTML=`✅ ${TKD.length} takım`})}
-
-function run(){$('rSt').textContent='...';setTimeout(()=>{try{analyze();$('uSec').classList.add('hid');$('app').classList.remove('hid');$('hs').style.display='flex'}catch(e){alert(e.message);console.error(e)}},80)}
-
-function getTakim(kod){return takimLU[kod]?'Takım':'Takım Değil'}
-
-function analyze(){
-  const now=new Date();DT=[];MT=[];SI=[];BI=[];SM={};CM={};
-  const cr=[],sr=[];
-  for(const r of RR){const m=ms(r.d);if(!m)continue;r._c=gc(r.al,r.an);if(!r._c)continue;if(m.d)cr.push(r);else{r._s=m;sr.push(r)}}
-  for(const r of cr){const pk=r.k+'|||'+r.rn;if(!CM[pk])CM[pk]={sz:{},m:{a:r.a,g:r.al,k:r.k,rn:r.rn,c:r._c,sk:r.sk,sn:r.sn,tk:getTakim(r.k)}};CM[pk].sz[r.b]=(CM[pk].sz[r.b]||0)+r.st}
-  for(const r of sr){const sk=r._s.k;if(!SM[sk])SM[sk]={};const pk=r.k+'|||'+r.rn;if(!SM[sk][pk])SM[sk][pk]={sz:{},m:{a:r.a,g:r.al,k:r.k,rn:r.rn,c:r._c,sk:r.sk,sn:r.sn,tk:getTakim(r.k)}};if(!SM[sk][pk].sz[r.b])SM[sk][pk].sz[r.b]={s:0,sa:0,gi:null};const d=SM[sk][pk].sz[r.b];d.s+=r.st;d.sa+=r.sa;if(r.gi){const dt=pdt(r.gi);if(dt&&(!d.gi||dt<d.gi))d.gi=dt}}
-
-  const sp=new Set();for(const sk of Object.keys(SM))for(const pk of Object.keys(SM[sk]))if(Object.values(SM[sk][pk].sz).some(x=>x.s>0||x.sa>0))sp.add(pk);
-  for(const[pk,p]of Object.entries(CM)){const ts=Object.values(p.sz).reduce((a,q)=>a+q,0);if(ts<=0||sp.has(pk))continue;const bc=Object.entries(p.sz).filter(([b,q])=>q>0).length;const bl=Object.entries(p.sz).filter(([b,q])=>q>0).map(([b,q])=>b+'('+q+')').join(', ');BI.push({k:p.m.k,a:p.m.a,rn:p.m.rn,g:p.m.g,c:p.m.c,bc,ts,bl,dur:bc<=2?'Kırık Beden':'Seri Ürün',y26:p.m.k.toUpperCase().startsWith('Y26')})}
-  BI.sort((a,b)=>(b.y26?1:0)-(a.y26?1:0)||b.ts-a.ts);
-  const dpO=new Set(BI.filter(d=>d.bc<=2).map(d=>d.k+'|||'+d.rn));
-  const dc={},gc2={},rc={};ST.forEach(s=>{dc[s.k]=0;gc2[s.k]=0;rc[s.k]=0});
-
-  // ===========================================================================
-  // SERİ DAĞITIM MOTORU v6.4 — DEPO→MAĞAZA
-  // 7 Kural: Tam seri / Yarım seri (min 3 beden) / Esnek 3 beden istisnası /
-  //           Yığılma önleme / Stratejik mağaza desteği / Artan rotate / Güven skoru
-  // ===========================================================================
-  const MIN_SIZES=3,MAX_QTY_PER_STORE=5,TOP_STORES_FOR_ALT=5;
-  const DOMINANT_SALES_RATIO=2.0,BIG_STOCK_THRESHOLD=15;
-  const STRATEGIC_STORES=['NEXT','EMAAR'];
-  const globalLoad={};ST.forEach(s=>globalLoad[s.k]=0);
-
-  function allocateSeri(central,storeSales){
-    const valid=Object.entries(central).filter(([b,s])=>s>0).map(([b])=>b);
-    if(!valid.length)return{alloc:{},reasons:[],conf:0};
-    const totalStock=Object.values(central).reduce((a,b)=>a+b,0);
-    const reasons=[];
-    
-    // Mağazaları satış DESC (rank tiebreaker)
-    const sellers=Object.entries(storeSales)
-      .map(([k,sz])=>({k,sales:Object.values(sz).reduce((a,b)=>a+b,0)}))
-      .filter(x=>x.sales>0)
-      .sort((a,b)=>b.sales-a.sales||(ST.find(x=>x.k===a.k)?.r||99)-(ST.find(x=>x.k===b.k)?.r||99));
-    
-    let sellerList=sellers.map(s=>s.k);
-    if(!sellerList.length){
-      const allS=ST.slice().sort((a,b)=>(globalLoad[a.k]||0)-(globalLoad[b.k]||0)||a.r-b.r);
-      sellerList=allS.slice(0,2).map(s=>s.k);
-      reasons.push('⚠ Hiç satan yok — rank/yük');
-    }
-    
-    // Esnek 3 beden kuralı
-    if(valid.length<MIN_SIZES&&sellers.length>=1){
-      const top=sellers[0],second=sellers[1];
-      const ts=top.sales,ss=second?second.sales:0;
-      if(ts>=DOMINANT_SALES_RATIO*ss&&ts>=3){
-        const a={};a[top.k]={};valid.forEach(b=>a[top.k][b]=central[b]);
-        reasons.push(`✅ Az bedenli (${valid.length})+${top.k} açık ara lider (${ts}vs${ss})`);
-        return{alloc:a,reasons,conf:95};
-      }
-    }
-    
-    // Stratejik mağazalar (büyük stok + sadece yarım seri)
-    let strategicHalf=[];
-    if(totalStock>=BIG_STOCK_THRESHOLD){
-      for(const s of STRATEGIC_STORES)if(!sellerList.includes(s))strategicHalf.push(s);
-      if(strategicHalf.length)reasons.push(`🎯 Büyük stok (${totalStock})→stratejik: ${strategicHalf.join(',')}`);
-    }
-    
-    const alloc={};const remaining={...central};
-    
-    // TAM SERİ (sadece satış yapanlar)
-    const minStock=Math.min(...valid.map(b=>central[b]));
-    const fullCount=Math.min(minStock,sellerList.length);
-    if(fullCount>0)reasons.push(`📦 Tam seri: ${sellerList.slice(0,fullCount).join(',')} (min ${minStock})`);
-    for(let i=0;i<fullCount;i++){
-      const s=sellerList[i];alloc[s]={};valid.forEach(b=>alloc[s][b]=0);
-      for(const b of valid){alloc[s][b]+=1;remaining[b]-=1;}
-    }
-    
-    // YARIM SERİ (önce atlanan satıcılar, sonra stratejik)
-    const halfQueue=sellerList.slice(fullCount).concat(strategicHalf);
-    while(halfQueue.length){
-      const remSz=valid.filter(b=>remaining[b]>0);
-      if(remSz.length<MIN_SIZES)break;
-      const st=halfQueue.shift();
-      if(!alloc[st]){alloc[st]={};valid.forEach(b=>alloc[st][b]=0);}
-      const given=[];
-      for(const b of remSz)if(remaining[b]>0){alloc[st][b]+=1;remaining[b]-=1;given.push(b);}
-      if(given.length)reasons.push(`🔹 Yarım seri: ${st} (${given.join(',')})`);
-    }
-    
-    // ARTAN
-    let assigned=Object.keys(alloc).filter(s=>Object.values(alloc[s]).reduce((a,b)=>a+b,0)>0);
-    let remTotal=Object.values(remaining).reduce((a,b)=>a+b,0);
-    
-    if(assigned.length===1&&remTotal>=3){
-      const pool=ST.filter(s=>s.r<=TOP_STORES_FOR_ALT&&s.k!==assigned[0])
-        .sort((a,b)=>(globalLoad[a.k]||0)-(globalLoad[b.k]||0)||a.r-b.r);
-      if(pool.length){
-        const sec=pool[0].k;
-        if(!alloc[sec]){alloc[sec]={};valid.forEach(b=>alloc[sec][b]=0);}
-        assigned.push(sec);
-        reasons.push(`⚖ Yığılma önleme: ${sec}`);
-      }
-    }
-    if(remTotal>0&&assigned.length){
-      let ri=0;
-      for(const b of valid){
-        while(remaining[b]>0){
-          alloc[assigned[ri%assigned.length]][b]+=1;remaining[b]-=1;ri++;
-        }
-      }
-    }
-    
-    // Yük dengeleme
-    const totals={};for(const s of Object.keys(alloc))totals[s]=Object.values(alloc[s]).reduce((a,b)=>a+b,0);
-    const sortedLoad=Object.entries(totals).sort((a,b)=>b[1]-a[1]);
-    if(sortedLoad.length){
-      const[biggest,bq]=sortedLoad[0];
-      if(bq>MAX_QTY_PER_STORE&&assigned.length===1){
-        const pool=ST.filter(s=>s.r<=TOP_STORES_FOR_ALT&&s.k!==biggest)
-          .sort((a,b)=>(globalLoad[a.k]||0)-(globalLoad[b.k]||0)||a.r-b.r);
-        if(pool.length){
-          const tgt=pool[0].k;
-          if(!alloc[tgt]){alloc[tgt]={};valid.forEach(b=>alloc[tgt][b]=0);}
-          const toMove=Math.floor((bq-MAX_QTY_PER_STORE+1)/2)+Math.floor((bq-MAX_QTY_PER_STORE)/2);
-          let moved=0;
-          const sortSz=valid.slice().sort((a,b)=>alloc[biggest][b]-alloc[biggest][a]);
-          for(const b of sortSz){
-            while(alloc[biggest][b]>=2&&moved<toMove){
-              alloc[biggest][b]-=1;alloc[tgt][b]+=1;moved++;
-            }
-          }
-          if(moved>0)reasons.push(`⚖ Yük dengeleme: ${biggest}→${tgt} (${moved})`);
-        }
-      }
-    }
-    
-    // Sıfırları temizle
-    const clean={};
-    for(const s of Object.keys(alloc)){
-      const sz={};for(const[b,q]of Object.entries(alloc[s]))if(q>0)sz[b]=q;
-      if(Object.keys(sz).length)clean[s]=sz;
-    }
-    
-    let conf=85;
-    if(sellers.length===0)conf=40;
-    else if(sellers.length<2)conf=60;
-    else if(valid.length<MIN_SIZES)conf=70;
-    else conf=90;
-    return{alloc:clean,reasons,conf};
-  }
-
-  // Ürün+renk için merkez stoğunu ve mağaza satışlarını hazırla, dağıt
-  // Sonra her beden için ayrı DT satırı oluştur (mevcut UI ile uyumlu)
-  // Stok büyüğüne göre sırala (yük dengelemesi için kritik)
-  const productList=Object.entries(CM)
-    .map(([pk,p])=>({pk,p,total:Object.values(p.sz).reduce((a,b)=>a+b,0)}))
-    .filter(x=>x.total>0&&!dpO.has(x.pk))
-    .sort((a,b)=>b.total-a.total);
-  
-  for(const{pk,p}of productList){
-    const central={...p.sz};
-    const storeSales={};
-    for(const s of ST){
-      const sp=SM[s.k]?.[pk];
-      if(!sp)continue;
-      storeSales[s.k]={};
-      for(const[b,v]of Object.entries(sp.sz))storeSales[s.k][b]=v.sa||0;
-    }
-    
-    const result=allocateSeri(central,storeSales);
-    if(!result.alloc||!Object.keys(result.alloc).length)continue;
-    
-    // Global yükü güncelle
-    for(const[s,sz]of Object.entries(result.alloc)){
-      globalLoad[s]=(globalLoad[s]||0)+Object.values(sz).reduce((a,b)=>a+b,0);
-    }
-    
-    // Her beden için DT satırı (mevcut UI uyumlu)
-    // Her bedende: o bedeni alan tüm mağazalar listelenir
-    for(const[b,bedQty]of Object.entries(central)){
-      if(bedQty<=0)continue;
-      const di=[];
-      for(const[storeK,sizes]of Object.entries(result.alloc)){
-        if(sizes[b]&&sizes[b]>0){
-          const stRef=ST.find(x=>x.k===storeK);
-          if(stRef)di.push({l:stRef.l,k:stRef.k,r:stRef.r,q:sizes[b],rs:'Seri Dağıtım v6.4'});
-        }
-      }
-      if(!di.length)continue;
-      const sts=ST.map(s=>{
-        const d=SM[s.k]?.[pk]?.sz[b];
-        return d?{l:s.l,r:s.r,s:d.s,sa:d.sa}:null;
-      }).filter(Boolean);
-      DT.push({
-        c:p.m.c,g:p.m.g,k:p.m.k,a:p.m.a,rn:p.m.rn,b,
-        ms:bedQty,di,sts,
-        rs:result.reasons.length?result.reasons[0]:'Seri dağıtım',
-        reasons:result.reasons,
-        conf:result.conf,
-        sk:p.m.sk,sn:p.m.sn,tk:p.m.tk
-      });
-    }
-  }
-
-  // MAĞAZA→MAĞAZA BALANCED
-  const allPK=new Set([...Object.keys(CM),...Object.values(SM).flatMap(m=>Object.keys(m))]);
-  for(const pk of allPK){for(const src of[...ST].reverse()){const sp2=SM[src.k]?.[pk];if(!sp2||gc2[src.k]>=30)continue;for(const[b,sd]of Object.entries(sp2.sz)){if(sd.s<=0||gc2[src.k]>=30)continue;const dy=sd.gi?Math.floor((now-sd.gi)/864e5):999;if(dy<7)continue;let ok=false,rs='';const tsa=Object.values(sp2.sz).reduce((a,x)=>a+x.sa,0);if(dy>=7&&sd.sa===0&&tsa===0){ok=true;rs=dy+'g∅'}else if(dy>=21&&sd.sa===0){ok=true;rs=dy+'g bd∅'}const sl=Object.values(sp2.sz).filter(x=>x.s>0).length;if(sl===1&&sd.sa===0&&tsa===0&&dy>=7){ok=true;rs='Kırık'}if(!ok)continue;const cands=[];for(const r2 of ST){if(r2.k===src.k||rc[r2.k]>=60)continue;const rp=SM[r2.k]?.[pk];if(!rp)continue;const rd=rp.sz[b],rS=rd?rd.s:0,rSa=rd?rd.sa:0,rT=Object.values(rp.sz).reduce((a,x)=>a+x.sa,0);let sc=0;if(rSa>0&&rS===0)sc=rSa*500+rT*10+(10-r2.r);else if(rT>0&&rS===0)sc=rT*10+(10-r2.r);if(r2.r<src.r)sc+=50;if(sc>0)cands.push({s:r2,sc})}if(!cands.length)continue;cands.sort((a,b)=>(rc[a.s.k]-rc[b.s.k])||(b.sc-a.sc));const best=cands[0].s;const gdt=sd.gi?fmtD(sd.gi):'';MT.push({fl:src.l,fk:src.k,fr:src.r,c:sp2.m.c,g:sp2.m.g,k:sp2.m.k,a:sp2.m.a,rn:sp2.m.rn,b,st:sl===1?Math.min(sd.s,2):1,tl:best.l,tk:best.k,tr:best.r,rs,sk:sp2.m.sk||'',sn:sp2.m.sn||'',tkm:sp2.m.tk||'',gdt});gc2[src.k]++;rc[best.k]++}}}
-
-  for(const store of ST){const ps=SM[store.k]||{};for(const[pk,p]of Object.entries(ps)){const ws=Object.entries(p.sz).filter(([b,x])=>x.s>0);if(ws.length===1){const[b,sd]=ws[0];if(sd.sa>0)continue;const bt=ST.find(s=>s.k!==store.k&&s.r<store.r)||ST[0];SI.push({sl:store.l,sr:store.r,g:p.m.g,a:p.m.a,k:p.m.k,rn:p.m.rn,b,st:sd.s,tg:store.r<=1?'En iyi mağazada':bt.l})}}}
-  SI.sort((a,b)=>b.sr-a.sr);
-
-  // Populate all filters
-  const gs=[...new Set([...DT.map(d=>d.g),...MT.map(m=>m.g)].filter(Boolean))].sort();
-  $('fG').innerHTML='<option value="">Tümü</option>';gs.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;$('fG').appendChild(o)});
-  $('fM').innerHTML='<option value="">Tümü</option>';ST.forEach(s=>{const o=document.createElement('option');o.value=s.k;o.textContent=s.l;$('fM').appendChild(o)});
-  $('fFrom').innerHTML='<option value="">Tümü</option><option value="MERKEZ">Merkez Depo</option>';ST.forEach(s=>{const o=document.createElement('option');o.value=s.k;o.textContent=s.l;$('fFrom').appendChild(o)});
-  const szs=[...new Set([...DT.map(d=>d.sk),...MT.map(m=>m.sk)].filter(Boolean))].sort();
-  $('fSez').innerHTML='<option value="">Tümü</option>';szs.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s;$('fSez').appendChild(o)});
-  ui();
-}
-
-function ui(){
-  const da=DT.reduce((a,t)=>a+t.di.reduce((s,d)=>s+d.q,0),0),ma=MT.reduce((a,t)=>a+t.st,0);
-  const mk=Object.values(CM).reduce((a,p)=>a+Object.values(p.sz).reduce((s,q)=>s+q,0),0);
-  $('s1').textContent=mk.toLocaleString('tr');$('s2').textContent=da;$('s3').textContent=ma;$('s4').textContent=SI.length;$('s5').textContent=(da+ma).toLocaleString('tr');
-  $('h1').textContent=DT.length+MT.length;$('h2').textContent=DT.length;$('h3').textContent=MT.length;$('h4').textContent=(da+ma).toLocaleString('tr');
-  $('tc1').textContent=DT.length;$('tc2').textContent=MT.length;
-  $('stTxt').textContent=`${RR.length.toLocaleString('tr')} satır · ${DT.length} depo · ${MT.length} mağaza · ${BI.length} bekleyen`;
-  updateDash();rD();rM();rS();rB();rE();
-}
-
-function updateDash(){
-  const fc2=$('fC').value;const filt=x=>!fc2||(x.c?.c||'')===fc2;
-  const dt2=DT.filter(filt),mt2=MT.filter(filt);
-  const da=dt2.reduce((a,t)=>a+t.di.reduce((s,d)=>s+d.q,0),0),ma=mt2.reduce((a,t)=>a+t.st,0);
-  $('dSum').innerHTML=`<div style="font-size:8px;color:var(--mt);margin-bottom:2px;font-weight:600">${fc2||'TÜM KATEGORİLER'}</div><div class="dash-row"><span class="lbl">Depo Transfer</span><span class="val" style="color:var(--ok)">${da}</span></div><div class="dash-row"><span class="lbl">Mağaza Transfer</span><span class="val" style="color:var(--ok)">${ma}</span></div><div class="dash-row"><span class="lbl dash-total">TOPLAM</span><span class="val dash-total">${da+ma}</span></div>`;
-  let h='';for(const s of ST){const dg=dt2.reduce((a,t)=>a+t.di.filter(d=>d.k===s.k).reduce((x,d)=>x+d.q,0),0);const mg=mt2.filter(t=>t.tk===s.k).reduce((a,t)=>a+t.st,0);const gi=mt2.filter(t=>t.fk===s.k).reduce((a,t)=>a+t.st,0);const net=dg+mg-gi;h+=`<div class="dash-row"><span class="lbl"><span class="rd r${s.r}" style="margin-right:2px"></span>${s.l}</span><span class="val"><span style="color:var(--ok)">↓${dg+mg}</span> <span style="color:var(--er)">↑${gi}</span> <b style="color:${net>0?'var(--ok)':net<0?'var(--er)':'var(--mt)'}">${net>0?'+':''}${net}</b></span></div>`}
-  $('dSt').innerHTML=h;
-}
-
-function gf(items,tp){const c=$('fC').value,g=$('fG').value,s=$('fS').value.toLowerCase(),m=$('fM').value,fr=$('fFrom').value,sz=$('fSez').value,tk=$('fTk').value;return items.filter(t=>{if(c&&(t.c?.c||'')!==c)return false;if(g&&t.g!==g)return false;if(s&&!(t.a||'').toLowerCase().includes(s)&&!(t.k||'').toLowerCase().includes(s))return false;if(m){if(tp==='d'&&!t.di.some(d=>d.k===m))return false;if(tp==='m'&&t.tk!==m)return false}if(fr){if(tp==='d'&&fr!=='MERKEZ')return false;if(tp==='m'&&t.fk!==fr)return false}if(sz&&t.sk!==sz)return false;if(tk){if(tk==='TAKIM'&&t.tkm!=='Takım'&&t.tk!=='Takım')return false;if(tk==='DEĞİL'&&t.tkm!=='Takım Değil'&&t.tk!=='Takım Değil')return false}return true})}
-function ch(c){return c?`<span class="ct ${c.s}">${c.l}</span>`:'';}
-function pL(k){return`<span class="prod-link" onclick="showImg('${k}')">${k}</span>`}
-function tkBadge(v){return v==='Takım'?'<span class="badge bg" style="font-size:7px">Takım</span>':'<span class="badge bm" style="font-size:7px">Tek</span>'}
-
-function rD(){const f=gf(DT,'d'),p=pp.depo,sl=f.slice((p-1)*PS,p*PS),tb=$('tb1');tb.innerHTML='';if(!sl.length){tb.innerHTML='<tr><td colspan="13" style="text-align:center;padding:16px;color:var(--mt)">Sonuç yok</td></tr>';rPg('depo',f.length);return}for(const t of sl){const sH=t.sts.map(s=>`<span title="${s.l} S:${s.s} Sat:${s.sa}" style="display:inline-flex;align-items:center;gap:1px;font-family:var(--fm);font-size:7px;padding:0 2px;border-radius:2px;background:${s.s>0?'#d1fae5':'#fee2e2'};border:1px solid ${s.s>0?'#6ee7b7':'#fca5a5'}"><span class="rd r${s.r}" style="width:3px;height:3px"></span>${s.s>0?s.s:'✗'}</span>`).join('');const dH=t.di.map(d=>`<span class="chip"><span class="rd r${d.r}" style="width:3px;height:3px"></span>${d.q}ad.${d.l}</span>`).join(' ');const cf=t.conf||0;const cfColor=cf>=85?'var(--ok)':cf>=65?'var(--wr)':'var(--er)';const cfH=cf?`<span style="font-family:var(--fm);font-size:10px;font-weight:700;color:${cfColor}">%${cf}</span>`:'';const reasonsTxt=t.reasons?t.reasons.join(' • '):t.rs;const r=document.createElement('tr');r.innerHTML=`<td>${ch(t.c)}</td><td><span class="badge bm">${t.g||'-'}</span></td><td style="font-weight:600;color:#111">${t.a}</td><td>${pL(t.k)}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.rn}</td><td style="font-family:var(--fm);font-weight:700">${t.b}</td><td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.ms}</td><td style="font-size:7px;color:var(--mt)">${t.sk||''}</td><td>${tkBadge(t.tk)}</td><td>${sH}</td><td>${dH}</td><td>${cfH}</td><td style="font-size:7px;color:var(--mt);font-style:italic" title="${reasonsTxt}">${reasonsTxt}</td>`;tb.appendChild(r)}rPg('depo',f.length);updateDash()}
-
-function rM(){const f=gf(MT,'m'),p=pp.mag,sl=f.slice((p-1)*PS,p*PS),tb=$('tb2');tb.innerHTML='';if(!sl.length){tb.innerHTML='<tr><td colspan="12" style="text-align:center;padding:16px;color:var(--mt)">Sonuç yok</td></tr>';rPg('mag',f.length);return}for(const t of sl){const r=document.createElement('tr');r.innerHTML=`<td><span class="sb2"><span class="rd r${t.fr}"></span>${t.fl}</span></td><td>${ch(t.c)}</td><td><span class="badge bm">${t.g||'-'}</span></td><td style="font-weight:600;color:#111">${t.a}</td><td>${pL(t.k)}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.rn}</td><td style="font-family:var(--fm);font-weight:700">${t.b}</td><td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.st}</td><td style="font-size:7px;color:var(--mt)">${t.sk||''}</td><td>${tkBadge(t.tkm)}</td><td><span class="chip"><span class="rd r${t.tr}" style="width:3px;height:3px"></span>${t.st}ad.${t.tl}</span></td><td style="font-size:7px;color:var(--mt);font-style:italic">${t.rs}</td>`;tb.appendChild(r)}rPg('mag',f.length);updateDash()}
-
-function rS(){const p=pp.tek,sl=SI.slice((p-1)*PS,p*PS),tb=$('tb3');tb.innerHTML='';for(const s of sl){const r=document.createElement('tr');r.innerHTML=`<td><span class="sb2"><span class="rd r${s.sr}"></span>${s.sl}</span></td><td><span class="badge bm">${s.g||'-'}</span></td><td style="font-weight:600">${s.a}</td><td>${pL(s.k)}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${s.rn}</td><td style="font-family:var(--fm);font-weight:700">${s.b}</td><td><span class="badge br">${s.st}</span></td><td><span class="chip">${s.tg}</span></td>`;tb.appendChild(r)}rPg('tek',SI.length)}
-function rB(){const p=pp.bek,sl=BI.slice((p-1)*PS,p*PS),tb=$('tb4');tb.innerHTML='';for(const d of sl){const r=document.createElement('tr');r.innerHTML=`<td style="font-family:var(--fm);font-size:9px;${d.y26?'font-weight:700;color:var(--er)':''}">${pL(d.k)}${d.y26?' <span class="badge by" style="font-size:6px">Y26</span>':''}</td><td>${ch(d.c)}</td><td><span class="badge bm">${d.g||'-'}</span></td><td style="font-weight:500">${d.a}</td><td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${d.rn}</td><td style="text-align:center">${d.bc}</td><td style="text-align:center;color:var(--ok);font-weight:600">${d.ts}</td><td style="font-size:7px;color:var(--mt);font-family:var(--fm)">${d.bl}</td><td><span class="badge ${d.dur==='Kırık Beden'?'br':'bb'}">${d.dur}</span></td>`;tb.appendChild(r)}rPg('bek',BI.length)}
-function rE(){const tb=$('tb5');tb.innerHTML='';for(const s of ST){const ps=SM[s.k]||{};let tS=0,tSa=0,mis=0;for(const p of Object.values(ps)){if(Object.values(p.sz).some(x=>x.sa>0)&&Object.values(p.sz).some(x=>x.sa>0&&x.s===0))mis++;for(const x of Object.values(p.sz)){tS+=x.s;tSa+=x.sa}}const o=tS+tSa>0?(tSa/(tS+tSa)*100).toFixed(0):0;const dg=DT.reduce((a,t)=>a+t.di.filter(d=>d.k===s.k).reduce((x,d)=>x+d.q,0),0);const mg=MT.filter(t=>t.tk===s.k).reduce((a,t)=>a+t.st,0);const gi=MT.filter(t=>t.fk===s.k).reduce((a,t)=>a+t.st,0);const net=dg+mg-gi;const r=document.createElement('tr');r.innerHTML=`<td style="font-weight:700">${s.l}</td><td><span class="sb2"><span class="rd r${s.r}"></span>#${s.r}</span></td><td style="font-family:var(--fm);font-weight:600">${tS.toLocaleString('tr')}</td><td style="font-family:var(--fm);color:var(--ac);font-weight:600">${tSa.toLocaleString('tr')}</td><td><div style="display:flex;align-items:center;gap:4px"><div style="flex:1;height:3px;background:#e5e7eb;border-radius:2px;overflow:hidden"><div style="width:${o}%;height:100%;background:var(--ac)"></div></div><span style="font-family:var(--fm);font-size:9px">%${o}</span></div></td><td><span class="badge ${mis>10?'br':mis>5?'by':'bm'}">${mis}</span></td><td style="font-family:var(--fm);color:var(--ok);font-weight:600">${dg>0?'+'+dg:'-'}</td><td style="font-family:var(--fm);color:var(--ok);font-weight:600">${mg>0?'+'+mg:'-'}</td><td style="font-family:var(--fm);color:var(--er);font-weight:600">${gi>0?'-'+gi:'-'}</td><td style="font-family:var(--fm);font-weight:700;color:${net>0?'var(--ok)':net<0?'var(--er)':'var(--mt)'}">${net>0?'+':''}${net}</td>`;tb.appendChild(r)}}
-
-function rPg(tab,total){const tp=Math.ceil(total/PS),el=$('pg'+(tab==='depo'?'1':tab==='mag'?'2':tab==='tek'?'3':'4'));if(!el)return;if(tp<=1){el.innerHTML='';return}const p=pp[tab];let h=`<span class="pi">${((p-1)*PS+1)}-${Math.min(p*PS,total)}/${total}</span><button class="pb" ${p===1?'disabled':''} onclick="gp('${tab}',${p-1})">←</button>`;for(let i=1;i<=tp;i++){if(i===1||i===tp||Math.abs(i-p)<=2)h+=`<button class="pb ${i===p?'ac':''}" onclick="gp('${tab}',${i})">${i}</button>`;else if(Math.abs(i-p)===3)h+=`…`}h+=`<button class="pb" ${p>=tp?'disabled':''} onclick="gp('${tab}',${p+1})">→</button>`;el.innerHTML=h}
-function gp(t,p){pp[t]=p;({depo:rD,mag:rM,tek:rS,bek:rB})[t]?.()}
-function sw(t){ct2=t;const ts=['depo','mag','tek','bek','env'];document.querySelectorAll('.tab').forEach((e,i)=>e.classList.toggle('active',ts[i]===t));['pDepo','pMag','pTek','pBek','pEnv'].forEach((id,i)=>{const e=$(id);if(e)e.classList.toggle('hid',ts[i]!==t)})}
-function af(){pp.depo=1;pp.mag=1;rD();rM();updateDash()}
-function rf(){$('fC').value='';$('fG').value='';$('fS').value='';$('fM').value='';$('fFrom').value='';$('fSez').value='';$('fTk').value='';af()}
-
-// EXCEL EXPORT — with extra columns
-function exAll(){
-  const wb=XLSX.utils.book_new();
-  const d1=gf(DT,'d').map(t=>({'Kategori':t.c?.l||'','Alt Grup':t.g,'Ürün Adı':t.a,'Ürün Kodu':t.k,'Renk':t.rn,'Beden':t.b,'Depo Stok':t.ms,'Sezon Kodu':t.sk,'Sezon Açıklama':t.sn,'Takım':t.tk,'Gönderilecek Mağaza':t.di.map(d=>d.q+' ADET '+d.l.toUpperCase()).join(' - '),'Güven %':t.conf||'','Neden':(t.reasons?t.reasons.join(' • '):t.rs)}));
-  const ws1=XLSX.utils.json_to_sheet(d1);setColWidths(ws1,[10,14,22,20,12,6,6,10,24,10,40,8,40]);
-  XLSX.utils.book_append_sheet(wb,ws1,'Depo Transfer');
-
-  const d2=gf(MT,'m').map(t=>({'Gönderen':t.fl,'Kategori':t.c?.l||'','Alt Grup':t.g,'Ürün Adı':t.a,'Ürün Kodu':t.k,'Renk':t.rn,'Beden':t.b,'Stok':t.st,'Mğz Giriş':t.gdt||'','Sezon Kodu':t.sk,'Sezon Açıklama':t.sn,'Takım':t.tkm,'Gönderilecek':t.st+' ADET '+t.tl.toUpperCase(),'Neden':t.rs}));
-  const ws2=XLSX.utils.json_to_sheet(d2);setColWidths(ws2,[12,10,14,22,20,12,6,4,12,10,24,10,30,16]);
-  XLSX.utils.book_append_sheet(wb,ws2,'Mağaza Arası');
-
-  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(SI.map(s=>({'Mağaza':s.sl,'Alt Grup':s.g,'Ürün Adı':s.a,'Ürün Kodu':s.k,'Renk':s.rn,'Beden':s.b,'Stok':s.st,'Öneri':s.tg}))),'Tek Beden');
-
-  for(const s of ST){const rows=MT.filter(t=>t.fk===s.k);if(!rows.length)continue;const ws=XLSX.utils.json_to_sheet(rows.map(t=>({'Alt Grup':t.g,'Ürün Adı':t.a,'Ürün Kodu':t.k,'Renk':t.rn,'Beden':t.b,'Stok':t.st,'Mğz Giriş':t.gdt||'','Sezon':t.sk,'Takım':t.tkm,'Gönderilecek':t.st+' ADET '+t.tl.toUpperCase(),'Neden':t.rs})));setColWidths(ws,[14,22,20,12,6,4,12,10,10,30,16]);XLSX.utils.book_append_sheet(wb,ws,s.l+' Giden')}
-  XLSX.writeFile(wb,`Transfer_${new Date().toLocaleDateString('tr').replace(/\./g,'-')}.xlsx`);
-}
-function setColWidths(ws,widths){ws['!cols']=widths.map(w=>({wch:w}))}
-
-function exBek(){const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(BI.map(d=>({'Ürün Kodu':d.k,'Kategori':d.c?.l||'','Alt Grup':d.g,'Ürün Adı':d.a,'Renk':d.rn,'Beden Sayısı':d.bc,'Toplam Adet':d.ts,'Bedenler':d.bl,'Durum':d.dur,'Y26':d.y26?'EVET':''}))),'Bekleyen');XLSX.writeFile(wb,`Bekleyen_${new Date().toLocaleDateString('tr').replace(/\./g,'-')}.xlsx`)}
-function pdt(v){if(!v)return null;if(v instanceof Date)return v;const d=new Date(String(v));return isNaN(d.getTime())?null:d}
-function fmtD(d){if(!d)return'';try{return d.toISOString().slice(0,10)}catch(e){return''}}
-
-// PWA Service Worker Registration
-if('serviceWorker' in navigator){
-  navigator.serviceWorker.register('./sw.js').then(reg=>{
-    reg.addEventListener('updatefound',()=>{
-      const w=reg.installing;
-      w.addEventListener('statechange',()=>{
-        if(w.state==='activated'){
-          // Show update notification
-          const bar=document.createElement('div');
-          bar.style.cssText='position:fixed;bottom:0;left:0;right:0;background:#059669;color:#fff;padding:10px 16px;font-size:12px;text-align:center;z-index:9999;cursor:pointer';
-          bar.innerHTML='🔄 Yeni güncelleme mevcut! <b>Yenilemek için tıklayın</b>';
-          bar.onclick=()=>location.reload();
-          document.body.appendChild(bar);
-        }
-      });
-    });
-    // Check for updates every 5 minutes
-    setInterval(()=>reg.update(),5*60*1000);
-  }).catch(e=>console.log('SW:',e));
-}
-</script>
 </body>
 </html>
