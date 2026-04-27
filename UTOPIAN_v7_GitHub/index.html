@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UTOPIAN TRANSFER v7</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1e3a5f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Transfer">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231e3a5f'/><text x='50' y='62' text-anchor='middle' font-size='40' font-weight='bold' fill='%23fbbf24'>UT</text></svg>">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header>
+  <div class="hd-l">
+    <div class="logo">UTOPIAN <span>TRANSFER</span></div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v7.2 (Y26: 15 gün · Virman: 30 gün)</div>
+  </div>
+  <div class="hd-stats" id="hdStats" style="display:none">
+    <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
+    <div class="hd-st"><div class="hd-v" id="hsDepo">0</div><div class="hd-l">Depodan</div></div>
+    <div class="hd-st"><div class="hd-v" id="hsMag">0</div><div class="hd-l">Mağazadan</div></div>
+    <div class="hd-st"><div class="hd-v" id="hsAdet">0</div><div class="hd-l">Adet</div></div>
+  </div>
+</header>
+
+<div class="layout">
+
+  <!-- SOL PANEL -->
+  <aside class="left">
+    <div class="img-actions" id="imgAct">
+      <button class="img-btn" id="btnFolder" onclick="UI.pickFolder()">📁 Klasör Seç</button>
+      <button class="img-btn" id="btnCache" onclick="UI.cacheImages()" style="display:none">💾 Kaydet</button>
+      <button class="img-btn cached" id="btnCached" style="display:none">✅ Önbellekte</button>
+    </div>
+    <div class="img-count" id="imgCnt"></div>
+    <div class="img-box">
+      <div class="img-no" id="imgNo">Ürün koduna tıklayın</div>
+      <img id="imgEl" style="display:none">
+      <div class="img-kod" id="imgKod"></div>
+    </div>
+    
+    <div class="dash">
+      <div class="dash-section">
+        <div class="dash-title">📊 Transfer Özeti</div>
+        <div id="dSum"><span class="muted">Analiz bekleniyor</span></div>
+      </div>
+      <div class="dash-section">
+        <div class="dash-title">🏪 Mağaza Dağılımı</div>
+        <div id="dStores"></div>
+      </div>
+      <div class="dash-section">
+        <div class="dash-title">🕘 Son İşlemler</div>
+        <div id="dHistory"><span class="muted">Henüz kayıt yok</span></div>
+      </div>
+    </div>
+    
+    <div class="special">
+      <div class="special-title">📝 Özel Talep</div>
+      <textarea id="specReq" placeholder="Örn: ...Mağazadan ... ürün al gönder..."></textarea>
+    </div>
+  </aside>
+
+  <!-- SAĞ İÇERİK -->
+  <main class="right">
+    <div class="container">
+
+      <!-- YÜKLEME EKRANI -->
+      <div id="uploadSection">
+        <div class="upl-row">
+          <div class="upl-box" id="u1" onclick="document.getElementById('f1').click()">
+            <div class="upl-ico">📦</div>
+            <div class="upl-t">Nebim Satış &amp; Envanter</div>
+            <div class="upl-s">TreeListColumn raporu (.xlsx)</div>
+            <button class="btn btn-p" onclick="event.stopPropagation();document.getElementById('f1').click()">Dosya Seç</button>
+            <input type="file" id="f1" accept=".xlsx,.xls" onchange="DATA.loadNebim(event)">
+            <div id="ds" class="upl-status"></div>
+          </div>
+          
+          <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()">
+            <div class="upl-ico">👔</div>
+            <div class="upl-t">Takım Bilgisi &amp; Mal Grubu</div>
+            <div class="upl-s">Bir kez yüklenir, hep saklanır</div>
+            <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f2').click()">Dosya Seç</button>
+            <input type="file" id="f2" accept=".xlsx,.xls" onchange="DATA.loadTakim(event)">
+            <div id="ts" class="upl-status"></div>
+          </div>
+          
+          <div class="upl-box" id="u3" onclick="document.getElementById('f3').click()">
+            <div class="upl-ico">📋</div>
+            <div class="upl-t">Transfer Performans (Opsiyonel)</div>
+            <div class="upl-s">Mağaza Transfer İrsaliyesi (.xlsx)</div>
+            <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f3').click()">Dosya Seç</button>
+            <input type="file" id="f3" accept=".xlsx,.xls" onchange="DATA.loadIrsaliye(event)">
+            <div id="is" class="upl-status"></div>
+          </div>
+        </div>
+
+        <div class="run-bar">
+          <button class="btn-run" id="bRun" disabled onclick="ALGO.runAnalysis()">🚀 Transfer Analizi Başlat</button>
+          <div id="rSt" class="muted">Önce Nebim datasını yükleyin</div>
+        </div>
+
+        <!-- Geçmiş Listesi -->
+        <div class="history-section" id="historyList">
+          <div class="hist-title">📚 Önceki Transfer Çalışmaları</div>
+          <div id="histItems"><span class="muted">Henüz kayıt yok. İlk transferinizi yapın!</span></div>
+        </div>
+      </div>
+
+      <!-- ANA UYGULAMA -->
+      <div id="app" class="hidden">
+        <div class="status-bar">
+          <div class="status-pulse"></div>
+          <span id="stTxt"></span>
+          <span class="muted" style="margin-left:auto" id="stHistory"></span>
+        </div>
+
+        <!-- ÖZET KARTLARI -->
+        <div class="summary-grid">
+          <div class="sm-card"><div class="sm-l">Merkez Depo</div><div class="sm-v" id="s1">0</div><div class="sm-s">Stok</div></div>
+          <div class="sm-card"><div class="sm-l">Depo→Mağaza</div><div class="sm-v" id="s2">0</div><div class="sm-s">Transfer</div></div>
+          <div class="sm-card"><div class="sm-l">Mağaza→Mağaza</div><div class="sm-v" id="s3">0</div><div class="sm-s">Transfer</div></div>
+          <div class="sm-card"><div class="sm-l">Kırık Beden</div><div class="sm-v" id="s4">0</div><div class="sm-s">Toplama</div></div>
+          <div class="sm-card"><div class="sm-l">Yeni Sezon Y26</div><div class="sm-v" id="s5">0</div><div class="sm-s">Adet</div></div>
+          <div class="sm-card"><div class="sm-l">Virman</div><div class="sm-v" id="s6">0</div><div class="sm-s">Adet</div></div>
+        </div>
+
+        <!-- TABLOLAR -->
+        <div class="tabs">
+          <div class="tab active" onclick="UI.switchTab('depo')">📦 Depo Transfer <span class="badge by" id="tcDepo"></span></div>
+          <div class="tab" onclick="UI.switchTab('mag')">🔄 Mağaza Arası <span class="badge by" id="tcMag"></span></div>
+          <div class="tab" onclick="UI.switchTab('kirik')">⚠️ Kırık Beden <span class="badge by" id="tcKirik"></span></div>
+          <div class="tab" onclick="UI.switchTab('bek')">🔍 Bekleyen <span class="badge by" id="tcBek"></span></div>
+          <div class="tab" onclick="UI.switchTab('hata')">❌ Hatalı Tarih <span class="badge br" id="tcHata"></span></div>
+          <div class="tab" onclick="UI.switchTab('env')">📊 Envanter</div>
+          <div class="tab" onclick="UI.switchTab('perf')">🎯 Performans</div>
+        </div>
+
+        <!-- FİLTRELER -->
+        <div class="filters">
+          <div class="fg"><div class="fl">Sezon</div>
+            <select id="fSezon" onchange="UI.applyFilters()">
+              <option value="">Tümü</option>
+              <option value="YENI">Yeni Sezon (Y26)</option>
+              <option value="VIRMAN">Virman</option>
+            </select>
+          </div>
+          <div class="fg"><div class="fl">Kategori</div>
+            <select id="fKategori" onchange="UI.applyFilters()">
+              <option value="">Tümü</option>
+              <option value="TEKSTİL">Tekstil</option>
+              <option value="DIŞ GİYİM">Dış Giyim</option>
+              <option value="ÇANTA">Çanta</option>
+              <option value="KEMER">Kemer</option>
+              <option value="AYAKKABI">Ayakkabı</option>
+              <option value="AKSESUAR">Aksesuar</option>
+            </select>
+          </div>
+          <div class="fg"><div class="fl">Alt Grup</div>
+            <select id="fAltGrup" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
+          </div>
+          <div class="fg"><div class="fl">Takım</div>
+            <select id="fTakim" onchange="UI.applyFilters()">
+              <option value="">Tümü</option>
+              <option value="TAKIM">Takım Ürün</option>
+              <option value="DEGIL">Takım Değil</option>
+            </select>
+          </div>
+          <div class="fg"><div class="fl">Hedef Mağaza</div>
+            <select id="fHedef" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
+          </div>
+          <div class="fg"><div class="fl">Gönderen</div>
+            <select id="fGonderen" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
+          </div>
+          <div class="fg"><div class="fl">Ara (Kod / Ad)</div>
+            <input type="text" id="fSearch" placeholder="..." oninput="UI.applyFilters()">
+          </div>
+          <div class="filter-actions">
+            <button class="btn btn-g" onclick="UI.resetFilters()">↺ Sıfırla</button>
+            <button class="btn btn-ok" onclick="DATA.exportExcel()">⬇ Excel İndir</button>
+          </div>
+        </div>
+
+        <!-- MAĞAZA SIRA LEGENDİ -->
+        <div class="legend">
+          <span class="lg-t">YTD Sıralama:</span>
+          <span class="lg-b r1">1.İzmir</span>
+          <span class="lg-b r2">2.Gordion</span>
+          <span class="lg-b r3">3.Panora</span>
+          <span class="lg-b r4">4.MOİ</span>
+          <span class="lg-b r5">5.Bursa</span>
+          <span class="lg-b r6">6.Next</span>
+          <span class="lg-b r7">7.Emaar</span>
+        </div>
+
+        <!-- TAB İÇERİKLERİ -->
+        <div id="pDepo" class="tab-content">
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>STOK</th><th>GİRİŞ</th><th>TAKIM</th>
+                <th>MAĞAZA DURUMU</th><th>TRANSFER ÖNERİSİ</th><th>SKOR</th><th>NEDEN</th>
+              </tr></thead>
+              <tbody id="tbDepo"></tbody>
+            </table>
+            <div class="pg" id="pgDepo"></div>
+          </div>
+        </div>
+
+        <div id="pMag" class="tab-content hidden">
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>GÖNDEREN</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>GİRİŞ</th>
+                <th>TAKIM</th><th>HEDEF</th><th>SKOR</th><th>NEDEN</th>
+              </tr></thead>
+              <tbody id="tbMag"></tbody>
+            </table>
+            <div class="pg" id="pgMag"></div>
+          </div>
+        </div>
+
+        <div id="pKirik" class="tab-content hidden">
+          <div class="alert alert-warn">⚠️ 1 adet kalmış renk-beden ürünleri — en iyi mağazada toplanacak</div>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>GÖNDEREN</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>HEDEF MAĞAZA</th><th>NEDEN</th>
+              </tr></thead>
+              <tbody id="tbKirik"></tbody>
+            </table>
+            <div class="pg" id="pgKirik"></div>
+          </div>
+        </div>
+
+        <div id="pBek" class="tab-content hidden">
+          <div class="alert alert-info">🔍 Depoda bekleyen, hiçbir mağazaya gitmemiş ürünler</div>
+          <button class="btn btn-ok" onclick="DATA.exportBekleyen()">⬇ Bekleyen Listesi İndir</button>
+          <div class="tw" style="margin-top:8px">
+            <table>
+              <thead><tr>
+                <th>SEZON</th><th>ÜRÜN KODU</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>RENK</th><th>BD.</th><th>ADET</th><th>BEDENLER</th><th>DURUM</th>
+              </tr></thead>
+              <tbody id="tbBek"></tbody>
+            </table>
+            <div class="pg" id="pgBek"></div>
+          </div>
+        </div>
+
+        <div id="pHata" class="tab-content hidden">
+          <div class="alert alert-error">❌ Mağaza Giriş Tarihi <b>1.1.1900</b> olan kayıtlar — Nebim'de hatalı kayıt, transfere dahil EDİLMEDİ</div>
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>DEPO</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
+                <th>TARİH</th><th>STOK</th><th>SATIŞ</th><th>SEBEP</th>
+              </tr></thead>
+              <tbody id="tbHata"></tbody>
+            </table>
+            <div class="pg" id="pgHata"></div>
+          </div>
+        </div>
+
+        <div id="pEnv" class="tab-content hidden">
+          <div class="tw">
+            <table>
+              <thead><tr>
+                <th>MAĞAZA</th><th>#</th><th>STOK</th><th>SATIŞ</th>
+                <th>PERFORMANS</th><th>BD.EKSİK</th>
+                <th class="ok">DEPO↓</th><th class="ok">MĞZ↓</th><th class="er">GİDEN↑</th><th>NET</th>
+              </tr></thead>
+              <tbody id="tbEnv"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pPerf" class="tab-content hidden">
+          <div class="alert alert-info">🎯 Transfer Performans Raporu — Önerilen vs. Gerçek Çıkış</div>
+          <div id="perfContent">
+            <div class="muted" style="padding:20px;text-align:center">
+              Performans raporu için <b>Mağaza Transfer İrsaliyesi Kontrol Listesi</b> dosyası yükleyin.<br>
+              <small>Ana ekranda 3. yükleme kutusunu kullanın.</small>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="hidden">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    <div id="loadingTxt">Hesaplanıyor...</div>
+  </div>
+</div>
+
+<!-- JS modülleri -->
+<script src="js/data.js"></script>
+<script src="js/algo.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/history.js"></script>
+<script src="js/perf.js"></script>
+<script src="js/init.js"></script>
+
+</body>
+</html>
