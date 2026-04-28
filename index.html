@@ -18,7 +18,7 @@
 <header>
   <div class="hd-l">
     <div class="logo">UTOPIAN <span>TRANSFER</span></div>
-    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v7.2 (Y26: 15 gün · Virman: 30 gün)</div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v7.3 (Y26: 15 gün · Virman: 30 gün)</div>
   </div>
   <div class="hd-stats" id="hdStats" style="display:none">
     <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
@@ -72,28 +72,31 @@
       <!-- YÜKLEME EKRANI -->
       <div id="uploadSection">
         <div class="upl-row">
-          <div class="upl-box drop-target" id="u1" data-loadtype="nebim" onclick="document.getElementById('f1').click()">
+          <div class="upl-box" id="u1" onclick="document.getElementById('f1').click()" 
+               ondragover="UI.dragOver(event, 'u1')" ondragleave="UI.dragLeave(event, 'u1')" ondrop="UI.dropFile(event, 'nebim')">
             <div class="upl-ico">📦</div>
             <div class="upl-t">Nebim Satış &amp; Envanter</div>
-            <div class="upl-s">TreeListColumn raporu (.xlsx)<br><b>Dosyayı buraya sürükleyip bırakabilirsiniz</b></div>
+            <div class="upl-s">Sürükle-bırak veya tıklayın (.xlsx)</div>
             <button class="btn btn-p" onclick="event.stopPropagation();document.getElementById('f1').click()">Dosya Seç</button>
             <input type="file" id="f1" accept=".xlsx,.xls" onchange="DATA.loadNebim(event)">
             <div id="ds" class="upl-status"></div>
           </div>
           
-          <div class="upl-box drop-target" id="u2" data-loadtype="takim" onclick="document.getElementById('f2').click()">
+          <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()"
+               ondragover="UI.dragOver(event, 'u2')" ondragleave="UI.dragLeave(event, 'u2')" ondrop="UI.dropFile(event, 'takim')">
             <div class="upl-ico">👔</div>
             <div class="upl-t">Takım Bilgisi &amp; Mal Grubu</div>
-            <div class="upl-s">Bir kez yüklenir, hep saklanır<br><b>Dosyayı buraya sürükleyip bırakabilirsiniz</b></div>
+            <div class="upl-s">Sürükle-bırak veya tıklayın · Bir kez yüklenir, hep saklanır</div>
             <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f2').click()">Dosya Seç</button>
             <input type="file" id="f2" accept=".xlsx,.xls" onchange="DATA.loadTakim(event)">
             <div id="ts" class="upl-status"></div>
           </div>
           
-          <div class="upl-box drop-target" id="u3" data-loadtype="irsaliye" onclick="document.getElementById('f3').click()">
+          <div class="upl-box" id="u3" onclick="document.getElementById('f3').click()"
+               ondragover="UI.dragOver(event, 'u3')" ondragleave="UI.dragLeave(event, 'u3')" ondrop="UI.dropFile(event, 'irsaliye')">
             <div class="upl-ico">📋</div>
             <div class="upl-t">Transfer Performans (Opsiyonel)</div>
-            <div class="upl-s">Mağaza Transfer İrsaliyesi (.xlsx)<br><b>Dosyayı buraya sürükleyip bırakabilirsiniz</b></div>
+            <div class="upl-s">Sürükle-bırak · Mağaza Transfer İrsaliyesi (.xlsx)</div>
             <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f3').click()">Dosya Seç</button>
             <input type="file" id="f3" accept=".xlsx,.xls" onchange="DATA.loadIrsaliye(event)">
             <div id="is" class="upl-status"></div>
@@ -130,14 +133,6 @@
           <div class="sm-card"><div class="sm-l">Virman</div><div class="sm-v" id="s6">0</div><div class="sm-s">Adet</div></div>
         </div>
 
-        <div class="category-grid" id="categoryGrid">
-          <div class="cat-card"><div class="cat-l">Tekstil + Dış Giyim</div><div class="cat-v" id="catTekstil">0</div></div>
-          <div class="cat-card"><div class="cat-l">Çanta</div><div class="cat-v" id="catCanta">0</div></div>
-          <div class="cat-card"><div class="cat-l">Ayakkabı</div><div class="cat-v" id="catAyakkabi">0</div></div>
-          <div class="cat-card"><div class="cat-l">Aksesuar</div><div class="cat-v" id="catAksesuar">0</div></div>
-        </div>
-        <div class="sender-summary" id="seasonSenderSummary"></div>
-
         <!-- TABLOLAR -->
         <div class="tabs">
           <div class="tab active" onclick="UI.switchTab('depo')">📦 Depo Transfer <span class="badge by" id="tcDepo"></span></div>
@@ -161,12 +156,11 @@
           <div class="fg"><div class="fl">Kategori</div>
             <select id="fKategori" onchange="UI.applyFilters()">
               <option value="">Tümü</option>
-              <option value="TEKSTİL">Tekstil</option>
-              <option value="DIŞ GİYİM">Dış Giyim</option>
+              <option value="GIYIM">Tekstil + Dış Giyim</option>
               <option value="ÇANTA">Çanta</option>
-              <option value="KEMER">Kemer</option>
               <option value="AYAKKABI">Ayakkabı</option>
               <option value="AKSESUAR">Aksesuar</option>
+              <option value="KEMER">Kemer</option>
             </select>
           </div>
           <div class="fg"><div class="fl">Alt Grup</div>
@@ -211,8 +205,9 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
-                <th>RENK</th><th>BEDEN</th><th>STOK</th><th>GÖNDEREN DEPO</th><th>TAKIM BİLGİSİ</th><th>TAKIM KODU</th>
+                <th>SEZON</th><th>SEZON DURUM</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>ALT GRUP</th>
+                <th>GÖNDERİCİ</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>STOK</th><th>TAKIM</th><th>TAKIM KOD</th>
                 <th>MAĞAZA DURUMU</th><th>TRANSFER ÖNERİSİ</th><th>SKOR</th><th>NEDEN</th>
               </tr></thead>
               <tbody id="tbDepo"></tbody>
@@ -225,9 +220,10 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>GÖNDEREN</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
-                <th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>GİRİŞ</th>
-                <th>TAKIM BİLGİSİ</th><th>TAKIM KODU</th><th>HEDEF</th><th>SKOR</th><th>NEDEN</th>
+                <th>SEZON</th><th>SEZON DURUM</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>ALT GRUP</th>
+                <th>GÖNDEREN</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>GİRİŞ</th>
+                <th>TAKIM</th><th>TAKIM KOD</th><th>HEDEF</th><th>SKOR</th><th>NEDEN</th>
               </tr></thead>
               <tbody id="tbMag"></tbody>
             </table>
@@ -236,12 +232,14 @@
         </div>
 
         <div id="pKirik" class="tab-content hidden">
-          <div class="alert alert-warn">⚠️ 1 adet kalmış renk-beden ürünleri — en iyi mağazada toplanacak</div>
+          <div class="alert alert-warn">⚠️ Kırık Beden — KEY: Depo+Ürün+Renk · Stoklu beden sayısı 1 ise kırık (üretilmiş 3+ bedenli ürünler için)</div>
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>GÖNDEREN</th><th>LOKASYON KEY</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
-                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>BEDEN DURUMU</th><th>HEDEF MAĞAZA</th><th>NEDEN</th>
+                <th>SEZON</th><th>SEZON DURUM</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>ALT GRUP</th>
+                <th>GÖNDEREN</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>SİZE</th>
+                <th>TAKIM</th><th>HEDEF MAĞAZA</th><th>NEDEN</th>
               </tr></thead>
               <tbody id="tbKirik"></tbody>
             </table>
@@ -255,7 +253,7 @@
           <div class="tw" style="margin-top:8px">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>ÜRÜN KODU</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>SEZON</th><th>ÜRÜN KODU</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
                 <th>RENK</th><th>BD.</th><th>ADET</th><th>BEDENLER</th><th>DURUM</th>
               </tr></thead>
               <tbody id="tbBek"></tbody>
