@@ -666,3 +666,15 @@ tr:hover td { background: #eff6ff; }
   .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .upl-row { grid-template-columns: 1fr; }
 }
+
+/* v8 revizyonları */
+.drop-target{position:relative;transition:all .15s ease}
+.drop-target.drag-over{outline:3px dashed #22c55e;background:#ecfdf5;transform:translateY(-2px)}
+.drop-target.drag-over::after{content:'Dosyayı bırakın';position:absolute;inset:8px;border-radius:10px;background:rgba(34,197,94,.12);display:flex;align-items:center;justify-content:center;font-weight:800;color:#047857;pointer-events:none}
+.category-grid{display:grid;grid-template-columns:repeat(4,minmax(140px,1fr));gap:10px;margin:10px 0}
+.cat-card{background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:10px 12px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.cat-l{font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
+.cat-v{font-family:var(--fm);font-size:20px;font-weight:800;color:#1e3a5f;margin-top:2px}
+.sender-summary{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;margin:8px 0;font-size:11px;color:#334155}
+.sender-summary .chip{margin:2px 4px 2px 0}
+@media(max-width:900px){.category-grid{grid-template-columns:repeat(2,minmax(120px,1fr))}}

@@ -72,28 +72,28 @@
       <!-- YÜKLEME EKRANI -->
       <div id="uploadSection">
         <div class="upl-row">
-          <div class="upl-box" id="u1" onclick="document.getElementById('f1').click()">
+          <div class="upl-box drop-target" id="u1" data-loadtype="nebim" onclick="document.getElementById('f1').click()">
             <div class="upl-ico">📦</div>
             <div class="upl-t">Nebim Satış &amp; Envanter</div>
-            <div class="upl-s">TreeListColumn raporu (.xlsx)</div>
+            <div class="upl-s">TreeListColumn raporu (.xlsx)<br><b>Dosyayı buraya sürükleyip bırakabilirsiniz</b></div>
             <button class="btn btn-p" onclick="event.stopPropagation();document.getElementById('f1').click()">Dosya Seç</button>
             <input type="file" id="f1" accept=".xlsx,.xls" onchange="DATA.loadNebim(event)">
             <div id="ds" class="upl-status"></div>
           </div>
           
-          <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()">
+          <div class="upl-box drop-target" id="u2" data-loadtype="takim" onclick="document.getElementById('f2').click()">
             <div class="upl-ico">👔</div>
             <div class="upl-t">Takım Bilgisi &amp; Mal Grubu</div>
-            <div class="upl-s">Bir kez yüklenir, hep saklanır</div>
+            <div class="upl-s">Bir kez yüklenir, hep saklanır<br><b>Dosyayı buraya sürükleyip bırakabilirsiniz</b></div>
             <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f2').click()">Dosya Seç</button>
             <input type="file" id="f2" accept=".xlsx,.xls" onchange="DATA.loadTakim(event)">
             <div id="ts" class="upl-status"></div>
           </div>
           
-          <div class="upl-box" id="u3" onclick="document.getElementById('f3').click()">
+          <div class="upl-box drop-target" id="u3" data-loadtype="irsaliye" onclick="document.getElementById('f3').click()">
             <div class="upl-ico">📋</div>
             <div class="upl-t">Transfer Performans (Opsiyonel)</div>
-            <div class="upl-s">Mağaza Transfer İrsaliyesi (.xlsx)</div>
+            <div class="upl-s">Mağaza Transfer İrsaliyesi (.xlsx)<br><b>Dosyayı buraya sürükleyip bırakabilirsiniz</b></div>
             <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f3').click()">Dosya Seç</button>
             <input type="file" id="f3" accept=".xlsx,.xls" onchange="DATA.loadIrsaliye(event)">
             <div id="is" class="upl-status"></div>
@@ -129,6 +129,14 @@
           <div class="sm-card"><div class="sm-l">Yeni Sezon Y26</div><div class="sm-v" id="s5">0</div><div class="sm-s">Adet</div></div>
           <div class="sm-card"><div class="sm-l">Virman</div><div class="sm-v" id="s6">0</div><div class="sm-s">Adet</div></div>
         </div>
+
+        <div class="category-grid" id="categoryGrid">
+          <div class="cat-card"><div class="cat-l">Tekstil + Dış Giyim</div><div class="cat-v" id="catTekstil">0</div></div>
+          <div class="cat-card"><div class="cat-l">Çanta</div><div class="cat-v" id="catCanta">0</div></div>
+          <div class="cat-card"><div class="cat-l">Ayakkabı</div><div class="cat-v" id="catAyakkabi">0</div></div>
+          <div class="cat-card"><div class="cat-l">Aksesuar</div><div class="cat-v" id="catAksesuar">0</div></div>
+        </div>
+        <div class="sender-summary" id="seasonSenderSummary"></div>
 
         <!-- TABLOLAR -->
         <div class="tabs">
@@ -203,8 +211,8 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
-                <th>RENK</th><th>BEDEN</th><th>STOK</th><th>GİRİŞ</th><th>TAKIM</th>
+                <th>SEZON</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>STOK</th><th>GÖNDEREN DEPO</th><th>TAKIM BİLGİSİ</th><th>TAKIM KODU</th>
                 <th>MAĞAZA DURUMU</th><th>TRANSFER ÖNERİSİ</th><th>SKOR</th><th>NEDEN</th>
               </tr></thead>
               <tbody id="tbDepo"></tbody>
@@ -217,9 +225,9 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>GÖNDEREN</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>SEZON</th><th>GÖNDEREN</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
                 <th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th><th>GİRİŞ</th>
-                <th>TAKIM</th><th>HEDEF</th><th>SKOR</th><th>NEDEN</th>
+                <th>TAKIM BİLGİSİ</th><th>TAKIM KODU</th><th>HEDEF</th><th>SKOR</th><th>NEDEN</th>
               </tr></thead>
               <tbody id="tbMag"></tbody>
             </table>
@@ -232,8 +240,8 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>GÖNDEREN</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
-                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>HEDEF MAĞAZA</th><th>NEDEN</th>
+                <th>SEZON</th><th>GÖNDEREN</th><th>LOKASYON KEY</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>ALT GRUP</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th>
+                <th>RENK</th><th>BEDEN</th><th>AD.</th><th>BEDEN DURUMU</th><th>HEDEF MAĞAZA</th><th>NEDEN</th>
               </tr></thead>
               <tbody id="tbKirik"></tbody>
             </table>
@@ -247,7 +255,7 @@
           <div class="tw" style="margin-top:8px">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>ÜRÜN KODU</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
+                <th>SEZON</th><th>ÜRÜN KODU</th><th>MAL GRUBU</th><th>ANA GRUP</th><th>KAT</th><th>ALT GRUP</th><th>ÜRÜN ADI</th>
                 <th>RENK</th><th>BD.</th><th>ADET</th><th>BEDENLER</th><th>DURUM</th>
               </tr></thead>
               <tbody id="tbBek"></tbody>
