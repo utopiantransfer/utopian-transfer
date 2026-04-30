@@ -118,7 +118,23 @@ const ALGO = (function() {
     return Math.floor((ref - date) / (1000 * 60 * 60 * 24));
   }
 
+  // PERFORMANS FORMÜLÜ: Bayes düzeltmesi
+  // Klasik: Satış / (Satış + Stok) — küçük sayılarda yanıltıcı (1/0 = %100)
+  // Bayes: (Satış+1) / (Satış+Stok+5) — istatistiksel olarak güvenilir
+  //   Örnekler:
+  //     0 satış,  0 stok → %20 (önceden %0)
+  //     1 satış,  0 stok → %33 (önceden %100 ⚠ yanılgı)
+  //     2 satış,  0 stok → %43
+  //     5 satış,  3 stok → %46 (önceden %63)
+  //     6 satış,  1 stok → %58 (önceden %86)
+  //     6 satış,  3 stok → %50 (önceden %67)
+  // Düşük satışlı mağazaları cezalandırır, yüksek satışlıları öne çıkarır.
   function calculatePerformance(satis, stok) {
+    return (satis + 1) / (satis + stok + 5);
+  }
+  
+  // Klasik formül - bilgi amaçlı (UI'da gösterim için kullanılabilir)
+  function calculateRawPerformance(satis, stok) {
     if (satis + stok === 0) return 0;
     return satis / (satis + stok);
   }
@@ -565,22 +581,25 @@ const ALGO = (function() {
     }
 
     // ========== MAĞAZA → MAĞAZA (SEZON BAZLI: Y26=15 gün, Virman=30 gün) ==========
+    // TEK KAYNAK KURALI: Aynı (ürün+renk+beden+hedef) için sadece 1 kaynak öneriyoruz
+    // Önce tüm adayları topla, sonra en iyi kaynağı seç
+    
+    const magCandidates = [];  // Geçici aday listesi
+    
     for (const pkey of Object.keys(productMap)) {
       const pdata = productMap[pkey];
       const hasAnySales = Object.values(pdata.stores)
         .some(s => Object.values(s.sizes).some(sd => sd.satis > 0));
       
-      // Bu ürünün eşiği (sezona göre)
       const dayThreshold = getDayThreshold(pdata.meta.isNewSeason);
       
       for (const storeKey of Object.keys(pdata.stores)) {
         const sdata = pdata.stores[storeKey];
         for (const [beden, sd] of Object.entries(sdata.sizes)) {
           if (sd.stok <= 0) continue;
-          if (sd.satis > 0) continue;        // Bu beden satıyor → kalsın
-          if (sd.stok === 1) continue;       // Kırık beden zaten işlendi
+          if (sd.satis > 0) continue;
+          if (sd.stok === 1) continue;
           
-          // SEZON BAZLI EŞİK
           if (!sd.giris) continue;
           const days = daysSince(sd.giris, refDate);
           if (days === null || days < dayThreshold) {
@@ -588,7 +607,6 @@ const ALGO = (function() {
             continue;
           }
           
-          // Hiç satan yoksa beklet
           if (!hasAnySales) {
             result.stats.waitingCount++;
             continue;
@@ -619,34 +637,72 @@ const ALGO = (function() {
           });
           
           const hedef = hedefAdaylari[0];
-          const transferQty = Math.min(sd.stok, 1);
           
-          result.magTransfers.push({
-            sezonTipi: pdata.meta.sezonTipi,
-            sezonDurum: pdata.meta.sezonDurum,
-            malGrubu: pdata.meta.malGrubu,
-            kategori: pdata.meta.kategori,
-            gonderen: sdata.meta,
-            hedef: hedef.store,
-            anaGrup: pdata.meta.anaGrup,
-            altGrup: pdata.meta.altGrup,
-            urunKodu: pdata.meta.urunKodu,
-            urunAdi: pdata.meta.urunAdi,
-            renk: pdata.meta.renk,
-            beden,
-            adet: transferQty,
-            giris: sd.giris,
-            days,
+          // Kaynak kalitesi skoru: ne kadar düşük performans = ne kadar iyi gönderici
+          // Bayes formülü kullanarak gönderici performansı
+          const gondPerf = pdata.storePerformance[storeKey].performance;
+          
+          // Aday listesine ekle (henüz transfer değil)
+          magCandidates.push({
+            kaynak: { storeKey, sdata, beden, sd, days, gondPerf },
+            hedef,
+            pdata,
             dayThreshold,
-            takimDurumu: pdata.meta.takimDurumu,
-            takimKod: pdata.meta.takimKod,
-            neden: days + ' gün satışsız (eşik: ' + dayThreshold + ' gün) → ' + hedef.store.label + ' (perf: %' + Math.round(hedef.performance * 100) + ')',
-            confidence: Math.round(hedef.performance * 100),
           });
-          
-          result.stats.transferableCount++;
         }
       }
+    }
+    
+    // ===== TEK KAYNAK KURALI: aynı (kod+renk+beden+hedef) için en iyi kaynağı seç =====
+    // Hedef için en iyi kaynak: gönderici performansı EN DÜŞÜK olan (yani satışı en az olan)
+    // Çünkü "satışı zayıf olan mağazadan al, satışı iyi olana ver" mantığı
+    
+    const grouped = {};  // (kod+renk+beden+hedefKey) → en iyi kaynak
+    for (const c of magCandidates) {
+      const key = `${c.pdata.meta.urunKodu}|${c.pdata.meta.renk}|${c.kaynak.beden}|${c.hedef.store.key}`;
+      if (!grouped[key]) {
+        grouped[key] = c;
+        continue;
+      }
+      // Mevcut en iyi kaynak ile karşılaştır
+      const cur = grouped[key];
+      // Tercih sırası:
+      // 1) Daha uzun süredir bekleyen (days yüksek = daha uzun durmuş)
+      // 2) Performansı düşük olan (kaynak satmıyor = mal göndersin)
+      // 3) Yıllık rank'ı yüksek olan (rank=7 Emaar mal göndersin önce, rank=1 İzmir göndersin son)
+      const curScore = cur.kaynak.days * 100 + (1 - cur.kaynak.gondPerf) * 50 + cur.kaynak.sdata.rank;
+      const newScore = c.kaynak.days * 100 + (1 - c.kaynak.gondPerf) * 50 + c.kaynak.sdata.rank;
+      if (newScore > curScore) grouped[key] = c;
+    }
+    
+    // Şimdi seçilen adayları magTransfers'a aktar
+    for (const c of Object.values(grouped)) {
+      const transferQty = Math.min(c.kaynak.sd.stok, 1);
+      
+      result.magTransfers.push({
+        sezonTipi: c.pdata.meta.sezonTipi,
+        sezonDurum: c.pdata.meta.sezonDurum,
+        malGrubu: c.pdata.meta.malGrubu,
+        kategori: c.pdata.meta.kategori,
+        gonderen: c.kaynak.sdata.meta,
+        hedef: c.hedef.store,
+        anaGrup: c.pdata.meta.anaGrup,
+        altGrup: c.pdata.meta.altGrup,
+        urunKodu: c.pdata.meta.urunKodu,
+        urunAdi: c.pdata.meta.urunAdi,
+        renk: c.pdata.meta.renk,
+        beden: c.kaynak.beden,
+        adet: transferQty,
+        giris: c.kaynak.sd.giris,
+        days: c.kaynak.days,
+        dayThreshold: c.dayThreshold,
+        takimDurumu: c.pdata.meta.takimDurumu,
+        takimKod: c.pdata.meta.takimKod,
+        neden: c.kaynak.days + ' gün satışsız (eşik: ' + c.dayThreshold + ' gün) → ' + c.hedef.store.label + ' (perf: %' + Math.round(c.hedef.performance * 100) + ')',
+        confidence: Math.round(c.hedef.performance * 100),
+      });
+      
+      result.stats.transferableCount++;
     }
 
     // ENVANTER ÖZETİ
@@ -706,6 +762,7 @@ const ALGO = (function() {
     parseDate,
     daysSince,
     calculatePerformance,
+    calculateRawPerformance,
     getCategory,
     getDayThreshold,
     
