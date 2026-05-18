@@ -18,7 +18,7 @@
 <header>
   <div class="hd-l">
     <div class="logo">UTOPIAN <span>TRANSFER</span></div>
-    <div class="logo-sub">Butik Modele Özel Dağıtım Motoru v8.1 (Y26: 7 gün · Virman: 14 gün · Bayes)</div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.1 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
   </div>
   <div class="hd-stats" id="hdStats" style="display:none">
     <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
@@ -66,57 +66,31 @@
   </aside>
 
   <!-- SAĞ İÇERİK -->
-  
-<div id="seasonBox" style="
-  background: #1F2937;
-  border: 2px solid #B8864F;
-  border-radius: 8px;
-  padding: 12px 16px;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-">
-  <div style="flex-shrink:0">
-    <div style="color:#B8864F;font-size:9px;font-weight:700;letter-spacing:1px;margin-bottom:4px">YENİ SEZON ÜRÜN KODU TANIMI</div>
-    <div style="color:#9CA3AF;font-size:9px;line-height:1.4">Buraya yazdığınız kod ile başlayan ürünler<br>YENİ SEZON — geri kalanlar VİRMAN olur</div>
-  </div>
-  <input
-    id="newSeasonInput"
-    type="text"
-    value="Y26"
-    maxlength="10"
-    placeholder="Y26"
-    style="
-      width: 90px;
-      padding: 8px 12px;
-      font-size: 18px;
-      font-weight: 700;
-      font-family: monospace;
-      text-transform: uppercase;
-      color: #D4A574;
-      background: #111827;
-      border: 2px solid #B8864F;
-      border-radius: 6px;
-      text-align: center;
-      letter-spacing: 2px;
-      outline: none;
-    "
-    oninput="this.value=this.value.toUpperCase().trim()"
-    title="Yeni sezon prefix — örn: Y26 veya K26"
-  >
-  <div id="seasonStatus" style="font-size:10px;color:#6B7280;flex:1">
-    Mevcut: <span id="curSeasonLabel" style="color:#D4A574;font-weight:700">Y26</span> = Yeni Sezon<br>
-    Diğer tüm ürünler = Virman
-  </div>
-</div>
-
-<main class="right">
+  <main class="right">
     <div class="container">
 
       <!-- YÜKLEME EKRANI -->
       <div id="uploadSection">
         <div class="upl-row">
+          <div id="seasonBox" class="upl-box" style="border:2px solid #B8864F !important;cursor:default;" onclick="document.getElementById('newSeasonInput').focus()">
+            <div class="upl-ico">🏷️</div>
+            <div class="upl-t" style="color:#B8864F;">Yeni Sezon Kodu</div>
+            <div class="upl-s">Y26 yazın → YENİ SEZON<br>Diğerleri → VİRMAN</div>
+            <input
+              id="newSeasonInput"
+              type="text"
+              value="Y26"
+              maxlength="6"
+              placeholder="Y26"
+              style="width:90px;padding:7px 10px;font-size:22px;font-weight:700;font-family:monospace;text-transform:uppercase;color:#D4A574;background:#0F172A;border:2px solid #B8864F;border-radius:6px;text-align:center;letter-spacing:3px;outline:none;display:block;margin:4px auto 8px;cursor:text;"
+              oninput="this.value=this.value.toUpperCase().trim();var l=document.getElementById('curSeasonLabel');if(l)l.textContent=this.value||'Y26'"
+              onclick="event.stopPropagation()"
+            >
+            <div style="font-size:9px;color:#6B7280;text-align:center;">
+              <span id="curSeasonLabel" style="color:#D4A574;font-weight:700">Y26</span> = Yeni Sezon
+            </div>
+          </div>
+
           <div class="upl-box" id="u1" onclick="document.getElementById('f1').click()" 
                ondragover="UI.dragOver(event, 'u1')" ondragleave="UI.dragLeave(event, 'u1')" ondrop="UI.dropFile(event, 'nebim')">
             <div class="upl-ico">📦</div>
@@ -149,7 +123,7 @@
         </div>
 
         <div class="run-bar">
-          <button class="btn-run" id="bRun" disabled onclick="ALGO.runAnalysis()">🚀 Transfer Analizi Başlat</button>
+          <button class="btn-run" id="bRun" disabled onclick="ALGO.runAnalysis(document.getElementById('newSeasonInput')?.value||'Y26')">🚀 Transfer Analizi Başlat</button>
           <div id="rSt" class="muted">Önce Nebim datasını yükleyin</div>
         </div>
 
@@ -364,28 +338,6 @@
 <script src="js/history.js"></script>
 <script src="js/perf.js"></script>
 <script src="js/init.js"></script>
-
-
-<script>
-// Yeni Sezon Input — canlı güncelleme
-document.addEventListener('DOMContentLoaded', function() {
-  const inp = document.getElementById('newSeasonInput');
-  const lbl = document.getElementById('curSeasonLabel');
-  if (inp && lbl) {
-    inp.addEventListener('input', function() {
-      const val = this.value.toUpperCase().trim() || 'Y26';
-      if (lbl) lbl.textContent = val;
-    });
-    inp.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter') {
-        // Analiz butonuna tıkla
-        const btn = document.getElementById('btnAnaliz') || document.querySelector('[onclick*="analiz"]');
-        if (btn) btn.click();
-      }
-    });
-  }
-});
-</script>
 
 </body>
 </html>
