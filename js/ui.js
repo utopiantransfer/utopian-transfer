@@ -1,5 +1,5 @@
 // ============================================================
-// UTOPIAN TRANSFER v7.0 — UI MODÜLÜ
+// UTOPIAN TRANSFER v8.1 — UI MODÜLÜ
 // Tablo render, filtreler, görsel paneli
 // ============================================================
 
@@ -239,7 +239,7 @@ const UI = (function() {
     $('tcBek').textContent = r.bekleyen.length;
     $('tcHata').textContent = r.hataliTarih.length;
     
-    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Performans bazlı dağıtım v7.0`;
+    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.1 (Y26:7g · Virman:14g · Velocity+FWoS)`;
     if (DATA.state.lastAnalysisDate) {
       $('stHistory').textContent = 'Son analiz: ' + DATA.state.lastAnalysisDate.toLocaleString('tr');
     }
@@ -524,7 +524,7 @@ const UI = (function() {
         <td>${takimBadge(t.takimDurumu)}</td>
         <td style="font-family:var(--fm);font-size:8px;color:var(--mt)">${t.takimKod || ''}</td>
         <td><span class="chip"><span class="rd r${t.hedef.rank}" style="width:3px;height:3px"></span>${t.adet}ad. ${t.hedef.label}</span></td>
-        <td><span class="perf-num ${t.confidence >= 70 ? 'perf-good' : 'perf-mid'}">%${t.confidence}</span></td>
+        <td><span class="perf-num ${(t.velocityScore||0) >= 70 ? 'perf-good' : (t.velocityScore||0) >= 40 ? 'perf-mid' : 'perf-bad'}">%${t.velocityScore||0}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
       `;
       tb.appendChild(tr);
@@ -557,7 +557,7 @@ const UI = (function() {
         : `<span class="sb2" style="background:#fef3c7;color:#92400e;border-color:#fde68a">📦 ${gondLabel}</span>`;
       
       // Size oranı: kalan / toplam
-      const sizeRatio = `${k.stokluBedenler || 1}/${k.toplamSize || '?'}`;
+      const sizeRatio = `${k.stokluBedenler||1}/${k.toplamSize || '?'}`;
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
@@ -575,7 +575,7 @@ const UI = (function() {
         <td style="font-family:var(--fm);font-size:9px;color:var(--er);font-weight:600">${sizeRatio}</td>
         <td>${takimBadge(k.takimDurumu)}</td>
         <td><span class="chip"><span class="rd r${k.hedef.rank}" style="width:3px;height:3px"></span>${k.hedef.label}</span></td>
-        <td style="font-size:8px;color:var(--mt);font-style:italic">${k.neden}</td>
+        <td style="font-size:8px;color:var(--mt);font-style:italic">${k.postTransfer ? '<span style="color:#F59E0B;font-weight:700">⚡ Transfer Sonrası · </span>' : ''}${k.neden}</td>
       `;
       tb.appendChild(tr);
     }

@@ -1,5 +1,5 @@
 // ============================================================
-// UTOPIAN TRANSFER v7.0 — VERİ YÖNETİMİ MODÜLÜ
+// UTOPIAN TRANSFER v8.0 — VERİ YÖNETİMİ MODÜLÜ
 // Excel parse, IndexedDB cache, dosya okuma, Excel export
 // ============================================================
 
@@ -17,7 +17,7 @@ const DATA = (function() {
 
   // ========== INDEXEDDB ==========
   
-  const DB_NAME = 'utopian_transfer_v7';
+  const DB_NAME = 'utopian_transfer_v8';
   const DB_VERSION = 1;
   let db = null;
 
