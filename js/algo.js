@@ -772,12 +772,35 @@ const ALGO = (function() {
       }
     }
 
-    // ===== ENVANTER ÖZETİ =====
+    // ===== ENVANTER ÖZETİ (UI uyumlu — tüm field'lar) =====
+    const magGelenMap_={}, depoGelenMap_={}, gidenMap_={}, eksikBedenMap_={};
+    
+    for (const t of result.depoTransfers) {
+      const hk=t.distrib&&t.distrib[0]?t.distrib[0].store.key:null;
+      if (hk) depoGelenMap_[hk]=(depoGelenMap_[hk]||0)+t.adet;
+    }
+    for (const t of result.magTransfers) {
+      magGelenMap_[t.hedef.key]=(magGelenMap_[t.hedef.key]||0)+t.adet;
+      gidenMap_[t.gonderen.key]=(gidenMap_[t.gonderen.key]||0)+t.adet;
+    }
+    for (const k of result.kirikBeden) {
+      gidenMap_[k.gonderen.key]=(gidenMap_[k.gonderen.key]||0)+(k.adet||1);
+      eksikBedenMap_[k.gonderen.key]=(eksikBedenMap_[k.gonderen.key]||0)+1;
+    }
+    
     for (const sk of Object.keys(storeStatsMap)) {
       const ss=storeStatsMap[sk];
+      const dG=depoGelenMap_[sk]||0;
+      const mG=magGelenMap_[sk]||0;
+      const gd=gidenMap_[sk]||0;
+      const ek=eksikBedenMap_[sk]||0;
       result.envanter.push({
-        store:ss.storeMeta,stok:ss.stok,satis:ss.satis,
+        store:ss.storeMeta,
+        stok:ss.stok,satis:ss.satis,
+        totalStok:ss.stok,totalSatis:ss.satis,
         str:ss.stok+ss.satis>0?Math.round(ss.satis/(ss.stok+ss.satis)*100):0,
+        eksikBeden:ek,depoGelen:dG,magGelen:mG,giden:gd,
+        net:(dG+mG)-gd,
       });
     }
     result.envanter.sort((a,b)=>a.store.rank-b.store.rank);

@@ -1,5 +1,5 @@
 // ============================================================
-// UTOPIAN TRANSFER v7.0 — INIT MODÜLÜ
+// UTOPIAN TRANSFER v8.1 — INIT MODÜLÜ
 // Sayfa yüklendiğinde çalışan başlangıç kodu
 // ============================================================
 
@@ -21,7 +21,7 @@
         navigator.serviceWorker.register('sw.js').catch(e => console.warn('SW kayıt:', e));
       }
       
-      console.log('✓ UTOPIAN Transfer v7.0 hazır');
+      console.log('✓ UTOPIAN Transfer v8.1 hazır');
     } catch (e) {
       console.error('Init hatası:', e);
     }

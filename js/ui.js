@@ -68,25 +68,111 @@ const UI = (function() {
       const dh = await window.showDirectoryPicker({ mode: 'read' });
       imageHandles = {};
       let cnt = 0;
+      const photoRegex = /\.(jpg|jpeg|png|webp|gif|tiff|tif|bmp|svg|heic|heif|ico|psd|raw|cr2|nef|arw|dng|eps|ai|pdf)$/i;
+      
+      // NEBIMSRV klasör yapısı: 
+      // OfficialForms/
+      //   Y26111614907430-CA/        <- ürün+renk klasörü (klasör adı = SKU)
+      //     Y26111614907430-CA.jpg   <- DOĞRUDAN BU klasörde dosya (öncelik!)
+      //     ColorPhotos/             <- altklasör
+      //     MiscPhotos/              <- altklasör
+      
       for await (const [name, handle] of dh.entries()) {
         if (handle.kind === 'directory') {
-          for await (const [fn, fh] of handle.entries()) {
-            if (fh.kind === 'file' && /\.(jpg|jpeg|png|webp|gif|tiff|tif|bmp|svg|heic|heif|ico|psd|raw|cr2|nef|arw|dng|eps|ai|pdf)$/i.test(fn)) {
-              imageHandles[name.toUpperCase()] = fh;
-              const base = name.replace(/-[A-Za-z]+$/, '');
-              if (base !== name) imageHandles[base.toUpperCase()] = fh;
-              cnt++;
-              break;
+          let found = null;
+          
+          // 1. ÖNCE doğrudan klasörün içine bak (Y26....jpg gibi)
+          try {
+            for await (const [fn, fh] of handle.entries()) {
+              if (fh.kind === 'file' && photoRegex.test(fn)) {
+                found = fh;
+                break;
+              }
             }
+          } catch (err) { /* erişim yoksa devam */ }
+          
+          // 2. Bulunmadıysa ColorPhotos altklasörüne bak
+          if (!found) {
+            try {
+              const cp = await handle.getDirectoryHandle('ColorPhotos').catch(() => null);
+              if (cp) {
+                for await (const [fn, fh] of cp.entries()) {
+                  if (fh.kind === 'file' && photoRegex.test(fn)) {
+                    found = fh;
+                    break;
+                  }
+                }
+              }
+            } catch (err) {}
           }
+          
+          // 3. Hala yoksa MiscPhotos'a bak
+          if (!found) {
+            try {
+              const mp = await handle.getDirectoryHandle('MiscPhotos').catch(() => null);
+              if (mp) {
+                for await (const [fn, fh] of mp.entries()) {
+                  if (fh.kind === 'file' && photoRegex.test(fn)) {
+                    found = fh;
+                    break;
+                  }
+                }
+              }
+            } catch (err) {}
+          }
+          
+          // 4. Tüm altklasörlere bak (son çare)
+          if (!found) {
+            try {
+              for await (const [subName, subHandle] of handle.entries()) {
+                if (subHandle.kind === 'directory') {
+                  for await (const [fn, fh] of subHandle.entries()) {
+                    if (fh.kind === 'file' && photoRegex.test(fn)) {
+                      found = fh;
+                      break;
+                    }
+                  }
+                  if (found) break;
+                }
+              }
+            } catch (err) {}
+          }
+          
+          if (found) {
+            // Birden fazla varyasyon olarak kaydet (renk eki olabilir veya olmayabilir)
+            const upperName = name.toUpperCase();
+            imageHandles[upperName] = found;
+            
+            // Y26111614907430-CA → Y26111614907430 (renk eki olmadan)
+            const noColorBase = name.replace(/-[A-Za-z0-9]+$/, '');
+            if (noColorBase !== name) imageHandles[noColorBase.toUpperCase()] = found;
+            
+            // Y26111614907430-CA → Y26111614907430-C (kısaltma)
+            const shortBase = name.replace(/-([A-Za-z])([A-Za-z]+)$/, '-$1');
+            if (shortBase !== name) imageHandles[shortBase.toUpperCase()] = found;
+            
+            cnt++;
+          }
+        } else if (handle.kind === 'file' && photoRegex.test(name)) {
+          // Doğrudan dosya seçilmişse (örnek: Y26111614907430-CA.jpg)
+          const baseName = name.replace(/\.[^.]+$/, ''); // uzantı kaldır
+          imageHandles[baseName.toUpperCase()] = handle;
+          const noColorBase = baseName.replace(/-[A-Za-z0-9]+$/, '');
+          if (noColorBase !== baseName) imageHandles[noColorBase.toUpperCase()] = handle;
+          cnt++;
         }
       }
+      
       folderOk = true;
       $('imgCnt').textContent = `${cnt} fotoğraf bulundu`;
       $('btnCache').style.display = 'inline-flex';
       $('btnFolder').textContent = '✅ Klasör yüklendi';
+      console.log('Fotoğraflar yüklendi:', cnt, 'ürün. İlk 5 anahtar:', Object.keys(imageHandles).slice(0,5));
     } catch (e) {
-      if (e.name !== 'AbortError') alert(e.message);
+      if (e.name !== 'AbortError') {
+        console.error('pickFolder hatası:', e);
+        alert('Klasör okuma hatası: ' + e.message);
+      }
     }
   }
   
@@ -244,8 +330,10 @@ const UI = (function() {
     $('tcHata').textContent = r.hataliTarih.length;
     
     $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.1 (Y26:7g · Virman:14g · Velocity+FWoS)`;
-    if (DATA.state.lastAnalysisDate) {
+    if (DATA.state && DATA.state.lastAnalysisDate) {
       $('stHistory').textContent = 'Son analiz: ' + DATA.state.lastAnalysisDate.toLocaleString('tr');
+    } else if (DATA.lastAnalysisDate) {
+      $('stHistory').textContent = 'Son analiz: ' + new Date(DATA.lastAnalysisDate).toLocaleString('tr');
     }
     
     updateDashboard(r);
@@ -269,7 +357,7 @@ const UI = (function() {
     `;
     
     let storesHtml = '';
-    for (const env of r.envanterOzet) {
+    for (const env of r.envanter) {
       const dot = `<span class="rd r${env.store.rank}"></span>`;
       const netCls = env.net > 0 ? 'ok' : env.net < 0 ? 'er' : '';
       storesHtml += `<div class="dash-row">
@@ -668,7 +756,7 @@ const UI = (function() {
   
   function renderEnv() {
     if (!DATA.lastAnalysis) return;
-    const data = DATA.lastAnalysis.envanterOzet;
+    const data = DATA.lastAnalysis.envanter;
     const tb = $('tbEnv');
     tb.innerHTML = '';
     
