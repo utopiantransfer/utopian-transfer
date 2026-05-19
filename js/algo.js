@@ -113,7 +113,90 @@ const ALGO = (function() {
 
   // ===== YENİ SEZON TESPİTİ (dinamik prefix) =====
   // newSeasonPrefix: kullanıcının girdiği değer (ör: "Y26" veya "K26")
-  function isNewSeason(productCode, newSeasonPrefix) {
+
+  // ===== GÜVEN ENDEKSİ HESAPLAMA (v8.1 — UI için) =====
+  // Bir transferin doğruluğunu çok kriterli kontrol eder
+  // Hedef: %90+ = güvenilir, 75-89 = orta, <75 = riskli
+  function calculateGuvenEndeksi(params) {
+    const {
+      hedefSatis,      // Hedef mağazada bu üründe toplam satış
+      kaynakSatis,     // Kaynakta bu üründe toplam satış (mağaza→mağaza için)
+      kaynakBeden_satis, // Kaynakta bu BEDENDE satış (0 ideal)
+      hedefBeden_stok, // Hedefte bu BEDENDE stok (0 ideal — eksik olsun)
+      hedefBeden_satis,// Hedefte bu BEDENDE satış (varsa ideal)
+      bedenCurve,      // Hedef mağazada bu bedenin eğri yüzdesi
+      hedefSTR,        // Hedef mağaza genel STR
+      bekledigiGun,    // Kaynakta kaç gün bekledi
+      esik,            // Bekleme eşiği
+      isDepoTransfer,  // Depo→mağaza mı (true) yoksa mağaza→mağaza mı (false)
+      isKirikBeden,    // Kırık beden transferi mi?
+      stokluBedenSayisi, // Kırık için: kaç beden kaldı
+      toplamBedenSayisi, // Kırık için: kaç beden üretildi
+    } = params;
+    
+    let skor = 0;
+    
+    // ===== Kriter 1: Hedefte bu üründe satış var mı (35 puan) =====
+    // Bu en kritik kriter. Satışı olmayan mağazaya transfer = yanlış
+    if (hedefSatis >= 5) skor += 35;       // Çok güçlü talep
+    else if (hedefSatis >= 3) skor += 30;
+    else if (hedefSatis >= 1) skor += 25;
+    else skor += 0;                         // Hedefte hiç satış yok → RİSK
+    
+    // ===== Kriter 2: Hedefte bu BEDEN eksik mi (20 puan) =====
+    if (hedefBeden_stok === 0 && hedefBeden_satis > 0) skor += 20; // Eksik + talep var = mükemmel
+    else if (hedefBeden_stok === 0) skor += 15;                     // Eksik var
+    else if (hedefBeden_stok === 1) skor += 8;                      // Az stok
+    else skor += 0;                                                 // Yeterli stok = RİSK
+    
+    // ===== Kriter 3: Kaynak doğru mu (15 puan) =====
+    if (isDepoTransfer) {
+      skor += 15;  // Depo zaten doğal kaynak
+    } else {
+      // Mağaza→Mağaza için: kaynakta bu BEDENDE satış 0 olmalı
+      if (kaynakBeden_satis === 0) skor += 15;
+      else if (kaynakBeden_satis === 1) skor += 8;
+      else skor += 0;  // Kaynakta da satılıyor → göndermek yanlış
+    }
+    
+    // ===== Kriter 4: Beden eğrisi uyumu (10 puan) =====
+    // Hedef mağazada bu bedenin tarihsel pay yüksekse → doğru gönderim
+    if (bedenCurve >= 25) skor += 10;
+    else if (bedenCurve >= 15) skor += 8;
+    else if (bedenCurve >= 8) skor += 5;
+    else if (bedenCurve > 0) skor += 3;
+    
+    // ===== Kriter 5: Bekleme süresi (10 puan) =====
+    // Eşiğin üzerinde ne kadar çok beklediyse o kadar acil
+    if (bekledigiGun && esik) {
+      const ratio = bekledigiGun / esik;
+      if (ratio >= 3) skor += 10;       // 3x ve üzeri bekledi
+      else if (ratio >= 2) skor += 8;
+      else if (ratio >= 1.5) skor += 6;
+      else if (ratio >= 1) skor += 5;
+    } else if (isDepoTransfer) {
+      skor += 7;  // Depo için uygula varsayılan
+    }
+    
+    // ===== Kriter 6: Hedef mağaza YTD performansı (10 puan) =====
+    // Genel olarak iyi satan mağaza = daha güvenilir
+    if (hedefSTR >= 35) skor += 10;
+    else if (hedefSTR >= 30) skor += 8;
+    else if (hedefSTR >= 25) skor += 6;
+    else if (hedefSTR >= 20) skor += 4;
+    else skor += 2;
+    
+    // ===== Kırık beden bonusu (1 beden kaldıysa daha urgent) =====
+    if (isKirikBeden && toplamBedenSayisi && stokluBedenSayisi) {
+      const yayilim = (toplamBedenSayisi - stokluBedenSayisi) / toplamBedenSayisi;
+      // Yayılım yüksek = ne kadar bedenin tükendiği → daha kritik
+      if (yayilim >= 0.66) skor = Math.min(100, skor + 5); // 2/3+ tükendi
+    }
+    
+    return Math.min(100, Math.max(0, Math.round(skor)));
+  }
+
+    function isNewSeason(productCode, newSeasonPrefix) {
     if (!newSeasonPrefix) newSeasonPrefix = 'Y26';
     const code = String(productCode||'').toUpperCase();
     const prefix = String(newSeasonPrefix).toUpperCase().trim();
@@ -373,6 +456,16 @@ const ALGO = (function() {
             });
             const sezTipi_=pdata.meta.isNewSeason?'YENI':'VIRMAN';
             const sezDurum_=pdata.meta.isNewSeason?'Yeni Sezon':'Virman';
+            // Güven Endeksi
+            const tpSizeData=tp.sizes&&tp.sizes[beden]?tp.sizes[beden]:{stok:0,satis:0};
+            const hedefStr_=tp.stok+tp.satis>0?Math.round(tp.satis/(tp.stok+tp.satis)*100):0;
+            const guvenEnd_=calculateGuvenEndeksi({
+              hedefSatis:tp.satis,kaynakSatis:0,kaynakBeden_satis:0,
+              hedefBeden_stok:tpSizeData.stok,hedefBeden_satis:tpSizeData.satis,
+              bedenCurve:getBedenCurve(beden,tp.store.key),
+              hedefSTR:hedefStr_,bekledigiGun:0,esik:0,
+              isDepoTransfer:true,isKirikBeden:false,
+            });
             result.depoTransfers.push({
               kaynak:ddata.meta,gonderici:ddata.meta,hedef:tp.store,
               distrib:[{store:tp.store,qty,performance:tp.velocityScore}],
@@ -383,7 +476,9 @@ const ALGO = (function() {
               malGrubu:pdata.meta.malGrubu||'',sezonTipi:sezTipi_,sezonDurum:sezDurum_,
               takimDurumu:pdata.meta.takimDurumu||'',takimKod:pdata.meta.takimKod||'',
               velocityScore:Math.round(tp.velocityScore*100),
-              neden:ddata.meta.label+' → '+tp.store.label+': Beden eksik, Velocity=%'+Math.round(tp.velocityScore*100),
+              guvenEndeksi:guvenEnd_,
+              confidence:guvenEnd_,
+              neden:ddata.meta.label+' → '+tp.store.label+': Hedefte '+tp.satis+' satış, beden eksik (Güven %'+guvenEnd_+')',
             });
             result.stats.transferableCount++;
             break;
@@ -461,6 +556,19 @@ const ALGO = (function() {
 
         const target=cands[0][1].store;
         const toplam_stok=stokluB.reduce((s,b)=>s+(sdata.sizes[b]?.stok||0),0);
+        // Güven Endeksi - Kırık beden
+        const kHp=pdata.storePerformance[target.key];
+        const kHsize=stokluB[0]&&kHp&&kHp.sizes?kHp.sizes[stokluB[0]]:null;
+        const kSTR=kHp&&(kHp.stok+kHp.satis>0)?Math.round(kHp.satis/(kHp.stok+kHp.satis)*100):0;
+        const guvenK_=calculateGuvenEndeksi({
+          hedefSatis:kHp?kHp.satis:0,kaynakSatis:sdata.totalSatis,
+          kaynakBeden_satis:0,
+          hedefBeden_stok:kHsize?kHsize.stok:0,hedefBeden_satis:kHsize?kHsize.satis:0,
+          bedenCurve:getBedenCurve(stokluB[0]||'',target.key),
+          hedefSTR:kSTR,bekledigiGun:days||0,esik:dayThreshold,
+          isDepoTransfer:false,isKirikBeden:true,
+          stokluBedenSayisi:stokluB.length,toplamBedenSayisi:toplamSize,
+        });
         
         // Kırık beden: depo→mağaza listede zaten varsa atla (aynı hedef için)
         // Not: Burada beden virgüllü ('36, 38') olduğu için kontrol bedensiz yapılır
@@ -486,7 +594,9 @@ const ALGO = (function() {
           sezonDurum:pdata.meta.sezonDurum,takimDurumu:pdata.meta.takimDurumu,
           takimKod:pdata.meta.takimKod,
           velocityScore:Math.round(cands[0][1].velocityScore*100),
-          neden:`Kırık beden: ${stokluB.length}/${toplamSize} stoklu (eşik:${kirikEsik}) → ${target.label} [${stokluB.join(',')}]`,
+          guvenEndeksi:guvenK_,
+          confidence:guvenK_,
+          neden:`Kırık beden: ${stokluB.length}/${toplamSize} stoklu (eşik:${kirikEsik}) → ${target.label} [${stokluB.join(',')}] (Güven %${guvenK_})`,
         });
         result.stats.kirikCount++;
         result.stats.transferableCount++;
@@ -570,6 +680,18 @@ const ALGO = (function() {
 
       const sT_=c.pdata.meta.isNewSeason?'YENI':'VIRMAN';
       const sD_=c.pdata.meta.isNewSeason?'Yeni Sezon':'Virman';
+      // Güven Endeksi
+      const hp=c.pdata.storePerformance[c.hedef.store.key];
+      const hSize=hp&&hp.sizes&&hp.sizes[c.kaynak.beden]?hp.sizes[c.kaynak.beden]:{stok:0,satis:0};
+      const hSTR=hp&&(hp.stok+hp.satis>0)?Math.round(hp.satis/(hp.stok+hp.satis)*100):0;
+      const guvenM_=calculateGuvenEndeksi({
+        hedefSatis:hp?hp.satis:0,kaynakSatis:c.kaynak.sdata.totalSatis,
+        kaynakBeden_satis:c.kaynak.sd.satis,
+        hedefBeden_stok:hSize.stok,hedefBeden_satis:hSize.satis,
+        bedenCurve:getBedenCurve(c.kaynak.beden,c.hedef.store.key),
+        hedefSTR:hSTR,bekledigiGun:c.kaynak.days,esik:c.dayThreshold,
+        isDepoTransfer:false,isKirikBeden:false,
+      });
       result.magTransfers.push({
         gonderen:c.kaynak.sdata.meta,hedef:c.hedef.store,
         urunKodu:c.pdata.meta.urunKodu,urunAdi:c.pdata.meta.urunAdi,
@@ -580,8 +702,9 @@ const ALGO = (function() {
         malGrubu:c.pdata.meta.malGrubu||'',sezonTipi:sT_,sezonDurum:sD_,
         takimDurumu:c.pdata.meta.takimDurumu||'',takimKod:c.pdata.meta.takimKod||'',
         velocityScore:Math.round(c.hedef.velocityScore*100),
-        confidence:Math.round(c.hedef.velocityScore*100),
-        neden:c.kaynak.sdata.meta.label+' → '+c.hedef.store.label+': '+c.kaynak.days+'g | Vel:%'+Math.round(c.hedef.velocityScore*100),
+        confidence:guvenM_,
+        guvenEndeksi:guvenM_,
+        neden:c.kaynak.sdata.meta.label+' → '+c.hedef.store.label+': '+c.kaynak.days+'g bekledi, hedefte '+(hp?hp.satis:0)+' satış (Güven %'+guvenM_+')',
       });
       result.stats.transferableCount++;
     }
@@ -675,6 +798,16 @@ const ALGO = (function() {
     }
     result.stats.yeniSezonAdet=ysA_;
     result.stats.virmanAdet=vrA_;
+    
+    // Güven Endeksi istatistikleri
+    const tumGE=[];
+    for (const t of result.depoTransfers) if (t.guvenEndeksi!==undefined) tumGE.push(t.guvenEndeksi);
+    for (const t of result.magTransfers) if (t.guvenEndeksi!==undefined) tumGE.push(t.guvenEndeksi);
+    for (const t of result.kirikBeden) if (t.guvenEndeksi!==undefined) tumGE.push(t.guvenEndeksi);
+    result.stats.guvenOrtalama=tumGE.length>0?Math.round(tumGE.reduce((a,b)=>a+b,0)/tumGE.length):0;
+    result.stats.guvenUstu90=tumGE.filter(g=>g>=90).length;
+    result.stats.guvenAlti75=tumGE.filter(g=>g<75).length;
+    result.stats.guvenToplam=tumGE.length;
     
     return result;
   }

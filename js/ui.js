@@ -71,7 +71,7 @@ const UI = (function() {
       for await (const [name, handle] of dh.entries()) {
         if (handle.kind === 'directory') {
           for await (const [fn, fh] of handle.entries()) {
-            if (fh.kind === 'file' && /\.(jpg|jpeg|png|webp)$/i.test(fn)) {
+            if (fh.kind === 'file' && /\.(jpg|jpeg|png|webp|gif|tiff|tif|bmp|svg|heic|heif|ico|psd|raw|cr2|nef|arw|dng|eps|ai|pdf)$/i.test(fn)) {
               imageHandles[name.toUpperCase()] = fh;
               const base = name.replace(/-[A-Za-z]+$/, '');
               if (base !== name) imageHandles[base.toUpperCase()] = fh;
@@ -224,6 +224,10 @@ const UI = (function() {
     $('s4').textContent = r.kirikBeden.length;
     $('s5').textContent = r.stats.yeniSezonAdet.toLocaleString('tr');
     $('s6').textContent = r.stats.virmanAdet.toLocaleString('tr');
+    if (document.getElementById('s7')) {
+      document.getElementById('s7').textContent = '%' + (r.stats.guvenOrtalama || 0);
+      if (document.getElementById('s7sub')) document.getElementById('s7sub').textContent = (r.stats.guvenUstu90 || 0) + '/' + (r.stats.guvenToplam || 0) + ' yüksek';
+    }
     
     const totalAdet = r.depoTransfers.reduce((s, t) => s + t.distrib.reduce((x, d) => x + d.qty, 0), 0)
       + r.magTransfers.reduce((s, t) => s + t.adet, 0);
@@ -437,7 +441,7 @@ const UI = (function() {
     tb.innerHTML = '';
     
     if (!slice.length) {
-      tb.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
+      tb.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
       renderPagination('depo', filtered.length);
       return;
     }
@@ -463,24 +467,29 @@ const UI = (function() {
       const scoreCls = score >= 70 ? 'perf-good' : score >= 40 ? 'perf-mid' : 'perf-bad';
       const gondericiLabel = t.gonderici ? t.gonderici.label : 'Merkez Depo';
       
+      const conf = t.guvenEndeksi || t.confidence || t.velocityScore || score;
+      const confCls = conf >= 90 ? 'perf-good' : conf >= 75 ? 'perf-mid' : 'perf-bad';
+      const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
+      const hedefStore = t.distrib[0] ? t.distrib[0].store : null;
+      const hedefLabel = hedefStore ? hedefStore.label : '-';
+      const hedefRank = hedefStore ? hedefStore.rank : 1;
+      
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${sezonBadge(t.sezonTipi)}</td>
         <td><span class="badge ${t.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${t.sezonDurum || ''}</span></td>
-        <td><span class="badge bm" style="font-size:7px">${t.malGrubu || ''}</span></td>
         <td><span class="badge bb" style="font-size:7px">${t.anaGrup || '-'}</span></td>
-        <td><span class="badge bm">${t.altGrup || '-'}</span></td>
-        <td style="font-size:9px;color:var(--ac);font-weight:600">${gondericiLabel}</td>
+        <td><span class="badge bm" style="font-size:7px">${t.altGrup || '-'}</span></td>
+        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px">📦 ${gondericiLabel}</td>
         <td style="font-weight:600">${t.urunAdi}</td>
         <td>${productLink(t.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.renk}</td>
         <td style="font-family:var(--fm);font-weight:700">${t.beden}</td>
         <td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.depoStok}</td>
         <td>${takimBadge(t.takimDurumu)}</td>
-        <td style="font-family:var(--fm);font-size:8px;color:var(--mt)">${t.takimKod || ''}</td>
         <td>${sH}</td>
-        <td>${dH}</td>
-        <td><span class="perf-num ${scoreCls}">%${score}</span></td>
+        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${hedefRank}" style="display:inline-block;margin-right:4px"></span>${hedefLabel} <span style="font-size:9px;color:#059669;font-weight:600">(${t.adet}ad)</span></td>
+        <td><span class="perf-num ${confCls}" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
       `;
       tb.appendChild(tr);
@@ -501,20 +510,22 @@ const UI = (function() {
     tb.innerHTML = '';
     
     if (!slice.length) {
-      tb.innerHTML = '<tr><td colspan="17" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
+      tb.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
       renderPagination('mag', filtered.length);
       return;
     }
     
     for (const t of slice) {
+      const conf = t.guvenEndeksi || t.confidence || t.velocityScore || 0;
+      const confCls = conf >= 90 ? 'perf-good' : conf >= 75 ? 'perf-mid' : 'perf-bad';
+      const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
       const tr = document.createElement('tr');
       tr.innerHTML = `
         <td>${sezonBadge(t.sezonTipi)}</td>
         <td><span class="badge ${t.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${t.sezonDurum || ''}</span></td>
-        <td><span class="badge bm" style="font-size:7px">${t.malGrubu || ''}</span></td>
         <td><span class="badge bb" style="font-size:7px">${t.anaGrup || '-'}</span></td>
-        <td><span class="badge bm">${t.altGrup || '-'}</span></td>
-        <td><span class="sb2"><span class="rd r${t.gonderen.rank}"></span>${t.gonderen.label}</span></td>
+        <td><span class="badge bm" style="font-size:7px">${t.altGrup || '-'}</span></td>
+        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${t.gonderen.rank}" style="display:inline-block;margin-right:4px"></span>${t.gonderen.label}</td>
         <td style="font-weight:600">${t.urunAdi}</td>
         <td>${productLink(t.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.renk}</td>
@@ -522,9 +533,8 @@ const UI = (function() {
         <td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.adet}</td>
         <td style="font-size:8px">${formatDate(t.giris)}</td>
         <td>${takimBadge(t.takimDurumu)}</td>
-        <td style="font-family:var(--fm);font-size:8px;color:var(--mt)">${t.takimKod || ''}</td>
-        <td><span class="chip"><span class="rd r${t.hedef.rank}" style="width:3px;height:3px"></span>${t.adet}ad. ${t.hedef.label}</span></td>
-        <td><span class="perf-num ${(t.velocityScore||0) >= 70 ? 'perf-good' : (t.velocityScore||0) >= 40 ? 'perf-mid' : 'perf-bad'}">%${t.velocityScore||0}</span></td>
+        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${t.hedef.rank}" style="display:inline-block;margin-right:4px"></span>${t.hedef.label} <span style="font-size:9px;color:#059669;font-weight:600">(${t.adet}ad)</span></td>
+        <td><span class="perf-num ${confCls}" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
       `;
       tb.appendChild(tr);
