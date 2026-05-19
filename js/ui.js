@@ -330,8 +330,8 @@ const UI = (function() {
     $('tcHata').textContent = r.hataliTarih.length;
     
     $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.1 (Y26:7g · Virman:14g · Velocity+FWoS)`;
-    if (DATA.state && DATA.state.lastAnalysisDate) {
-      $('stHistory').textContent = 'Son analiz: ' + DATA.state.lastAnalysisDate.toLocaleString('tr');
+    if (DATA.state && (DATA.state && DATA.state.lastAnalysisDate)) {
+      $('stHistory').textContent = 'Son analiz: ' + (DATA.state && DATA.state.lastAnalysisDate).toLocaleString('tr');
     } else if (DATA.lastAnalysisDate) {
       $('stHistory').textContent = 'Son analiz: ' + new Date(DATA.lastAnalysisDate).toLocaleString('tr');
     }
@@ -412,13 +412,13 @@ const UI = (function() {
   
   function getFilters() {
     return {
-      sezon: $('fSezon').value,
-      kategori: $('fKategori').value,
-      altGrup: $('fAltGrup').value,
-      takim: $('fTakim').value,
-      hedef: $('fHedef').value,
-      gonderen: $('fGonderen').value,
-      search: $('fSearch').value.toLowerCase().trim(),
+      sezon: ($('fSezon') && $('fSezon').value) || '',
+      kategori: ($('fKategori') && $('fKategori').value) || '',
+      altGrup: ($('fAltGrup') && $('fAltGrup').value) || '',
+      takim: ($('fTakim') && $('fTakim').value) || '',
+      hedef: ($('fHedef') && $('fHedef').value) || '',
+      gonderen: ($('fGonderen') && $('fGonderen').value) || '',
+      search: (($('fSearch') && $('fSearch').value) || '').toLowerCase().trim(),
     };
   }
   
