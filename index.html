@@ -4,14 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UTOPIAN TRANSFER v7</title>
-<link rel="manifest" href="manifest.json?v=8.1.2">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e3a5f">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Transfer">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%231e3a5f'/><text x='50' y='62' text-anchor='middle' font-size='40' font-weight='bold' fill='%23fbbf24'>UT</text></svg>">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<link rel="stylesheet" href="style.css?v=8.1.2">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
@@ -92,7 +92,7 @@
           </div>
 
           <div class="upl-box" id="u1" onclick="document.getElementById('f1').click()" 
-               ondragover="UI.dragOver(event, 'u1')" ondragleave="UI.dragLeave(event, 'u1')" ondrop="UI.dropFile(event, 'nebim')">
+               ondragover="window.UI&&UI.dragOver(event,'u1')" ondragleave="window.UI&&UI.dragLeave(event,'u1')" ondrop="window.UI&&UI.dropFile(event,'nebim')">
             <div class="upl-ico">📦</div>
             <div class="upl-t">Nebim Satış &amp; Envanter</div>
             <div class="upl-s">Sürükle-bırak veya tıklayın (.xlsx)</div>
@@ -102,7 +102,7 @@
           </div>
           
           <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()"
-               ondragover="UI.dragOver(event, 'u2')" ondragleave="UI.dragLeave(event, 'u2')" ondrop="UI.dropFile(event, 'takim')">
+               ondragover="window.UI&&UI.dragOver(event,'u2')" ondragleave="window.UI&&UI.dragLeave(event,'u2')" ondrop="window.UI&&UI.dropFile(event,'takim')">
             <div class="upl-ico">👔</div>
             <div class="upl-t">Takım Bilgisi &amp; Mal Grubu</div>
             <div class="upl-s">Sürükle-bırak veya tıklayın · Bir kez yüklenir, hep saklanır</div>
@@ -112,7 +112,7 @@
           </div>
           
           <div class="upl-box" id="u3" onclick="document.getElementById('f3').click()"
-               ondragover="UI.dragOver(event, 'u3')" ondragleave="UI.dragLeave(event, 'u3')" ondrop="UI.dropFile(event, 'irsaliye')">
+               ondragover="window.UI&&UI.dragOver(event,'u3')" ondragleave="window.UI&&UI.dragLeave(event,'u3')" ondrop="window.UI&&UI.dropFile(event,'irsaliye')">
             <div class="upl-ico">📋</div>
             <div class="upl-t">Transfer Performans (Opsiyonel)</div>
             <div class="upl-s">Sürükle-bırak · Mağaza Transfer İrsaliyesi (.xlsx)</div>
@@ -229,13 +229,14 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
                 <th style="background:#FEF3C7;color:#92400E;font-weight:700">📦 GÖNDERİCİ DEPO</th>
+                <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
                 <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>STOK</th>
                 <th>TAKIM</th><th>MAĞAZA DURUMU</th>
-                <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
                 <th style="background:#DBEAFE;color:#1E40AF;font-weight:700">GÜVEN %</th>
                 <th>NEDEN</th>
+                <th>ADET</th>
+                <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
               </tr></thead>
               <tbody id="tbDepo"></tbody>
             </table>
@@ -247,13 +248,14 @@
           <div class="tw">
             <table>
               <thead><tr>
-                <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
                 <th style="background:#FEF3C7;color:#92400E;font-weight:700">🏬 GÖNDERİCİ MAĞAZA</th>
-                <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>AD.</th>
+                <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
+                <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
                 <th>GİRİŞ</th><th>TAKIM</th>
-                <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
                 <th style="background:#DBEAFE;color:#1E40AF;font-weight:700">GÜVEN %</th>
                 <th>NEDEN</th>
+                <th>ADET</th>
+                <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
               </tr></thead>
               <tbody id="tbMag"></tbody>
             </table>
@@ -346,12 +348,12 @@
 </div>
 
 <!-- JS modülleri -->
-<script src="js/data.js?v=8.1.2"></script>
-<script src="js/algo.js?v=8.1.2"></script>
-<script src="js/ui.js?v=8.1.2"></script>
-<script src="js/history.js?v=8.1.2"></script>
-<script src="js/perf.js?v=8.1.2"></script>
-<script src="js/init.js?v=8.1.2"></script>
+<script src="js/data.js"></script>
+<script src="js/algo.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/history.js"></script>
+<script src="js/perf.js"></script>
+<script src="js/init.js"></script>
 
 
 <script>
