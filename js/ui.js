@@ -648,32 +648,27 @@ const UI = (function() {
     }
     
     for (const k of slice) {
-      // Gönderen: mağaza ya da depo (rank yoksa farklı stil)
-      const gondLabel = k.gonderen.label;
-      const gondHtml = k.gonderen.rank 
-        ? `<span class="sb2"><span class="rd r${k.gonderen.rank}"></span>${gondLabel}</span>`
-        : `<span class="sb2" style="background:#fef3c7;color:#92400e;border-color:#fde68a">📦 ${gondLabel}</span>`;
-      
-      // Size oranı: kalan / toplam
+      const conf = k.guvenEndeksi || k.confidence || 0;
+      const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
       const sizeRatio = `${k.stokluBedenler||1}/${k.toplamSize || '?'}`;
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
+        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${k.gonderen.rank||0}" style="display:inline-block;margin-right:4px"></span>${k.gonderen.label}</td>
         <td>${sezonBadge(k.sezonTipi)}</td>
         <td><span class="badge ${k.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${k.sezonDurum || ''}</span></td>
-        <td><span class="badge bm" style="font-size:7px">${k.malGrubu || ''}</span></td>
         <td><span class="badge bb" style="font-size:7px">${k.anaGrup || '-'}</span></td>
         <td><span class="badge bm">${k.altGrup || '-'}</span></td>
-        <td>${gondHtml}</td>
         <td style="font-weight:600">${k.urunAdi}</td>
         <td>${productLink(k.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${k.renk}</td>
-        <td style="font-family:var(--fm);font-weight:700">${k.beden}</td>
+        <td style="font-family:var(--fm);font-weight:700;color:var(--er)">${k.beden}</td>
         <td><span class="badge br">${k.adet}</span></td>
         <td style="font-family:var(--fm);font-size:9px;color:var(--er);font-weight:600">${sizeRatio}</td>
         <td>${takimBadge(k.takimDurumu)}</td>
-        <td><span class="chip"><span class="rd r${k.hedef.rank}" style="width:3px;height:3px"></span>${k.hedef.label}</span></td>
+        <td><span style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${k.postTransfer ? '<span style="color:#F59E0B;font-weight:700">⚡ Transfer Sonrası · </span>' : ''}${k.neden}</td>
+        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${k.hedef.rank}" style="display:inline-block;margin-right:4px"></span>${k.hedef.label}</td>
       `;
       tb.appendChild(tr);
     }
