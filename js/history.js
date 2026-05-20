@@ -269,6 +269,3 @@ const HISTORY = (function() {
     generateName,
   };
 })();
-
-// Global erişim için window objesine ekle
-if (typeof window !== "undefined") window.HISTORY = HISTORY;

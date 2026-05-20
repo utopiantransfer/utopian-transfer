@@ -552,6 +552,3 @@ const DATA = (function() {
     exportBekleyen,
   };
 })();
-
-// Global erişim için window objesine ekle
-if (typeof window !== "undefined") window.DATA = DATA;
