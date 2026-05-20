@@ -872,3 +872,6 @@ const ALGO = (function() {
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
+
+// Global erişim için window objesine ekle
+if (typeof window !== "undefined") window.ALGO = ALGO;

@@ -564,11 +564,11 @@ const UI = (function() {
       
       const tr = document.createElement('tr');
       tr.innerHTML = `
+        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px">📦 ${gondericiLabel}</td>
         <td>${sezonBadge(t.sezonTipi)}</td>
         <td><span class="badge ${t.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${t.sezonDurum || ''}</span></td>
         <td><span class="badge bb" style="font-size:7px">${t.anaGrup || '-'}</span></td>
         <td><span class="badge bm" style="font-size:7px">${t.altGrup || '-'}</span></td>
-        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px">📦 ${gondericiLabel}</td>
         <td style="font-weight:600">${t.urunAdi}</td>
         <td>${productLink(t.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.renk}</td>
@@ -576,9 +576,10 @@ const UI = (function() {
         <td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.depoStok}</td>
         <td>${takimBadge(t.takimDurumu)}</td>
         <td>${sH}</td>
-        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${hedefRank}" style="display:inline-block;margin-right:4px"></span>${hedefLabel} <span style="font-size:9px;color:#059669;font-weight:600">(${t.adet}ad)</span></td>
         <td><span class="perf-num ${confCls}" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
+        <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${t.adet}</td>
+        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${hedefRank}" style="display:inline-block;margin-right:4px"></span>${hedefLabel}</td>
       `;
       tb.appendChild(tr);
     }
@@ -609,21 +610,21 @@ const UI = (function() {
       const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
       const tr = document.createElement('tr');
       tr.innerHTML = `
+        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${t.gonderen.rank}" style="display:inline-block;margin-right:4px"></span>${t.gonderen.label}</td>
         <td>${sezonBadge(t.sezonTipi)}</td>
         <td><span class="badge ${t.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${t.sezonDurum || ''}</span></td>
         <td><span class="badge bb" style="font-size:7px">${t.anaGrup || '-'}</span></td>
         <td><span class="badge bm" style="font-size:7px">${t.altGrup || '-'}</span></td>
-        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${t.gonderen.rank}" style="display:inline-block;margin-right:4px"></span>${t.gonderen.label}</td>
         <td style="font-weight:600">${t.urunAdi}</td>
         <td>${productLink(t.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.renk}</td>
         <td style="font-family:var(--fm);font-weight:700">${t.beden}</td>
-        <td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.adet}</td>
         <td style="font-size:8px">${formatDate(t.giris)}</td>
         <td>${takimBadge(t.takimDurumu)}</td>
-        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${t.hedef.rank}" style="display:inline-block;margin-right:4px"></span>${t.hedef.label} <span style="font-size:9px;color:#059669;font-weight:600">(${t.adet}ad)</span></td>
         <td><span class="perf-num ${confCls}" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
+        <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${t.adet}</td>
+        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${t.hedef.rank}" style="display:inline-block;margin-right:4px"></span>${t.hedef.label}</td>
       `;
       tb.appendChild(tr);
     }
@@ -843,3 +844,6 @@ const UI = (function() {
     gotoPage,
   };
 })();
+
+// Global erişim için window objesine ekle
+if (typeof window !== "undefined") window.UI = UI;

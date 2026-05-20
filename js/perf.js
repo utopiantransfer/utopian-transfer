@@ -193,3 +193,6 @@ const PERF = (function() {
     _lastStats: null,
   };
 })();
+
+// Global erişim için window objesine ekle
+if (typeof window !== "undefined") window.PERF = PERF;

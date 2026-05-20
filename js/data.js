@@ -338,6 +338,7 @@ const DATA = (function() {
       'Takım': t.takimDurumu || '',
       'Güven %': t.guvenEndeksi || t.confidence || '',
       'Neden': t.neden,
+      'Adet': t.adet,
       'HEDEF MAĞAZA': t.distrib && t.distrib[0] ? t.distrib[0].store.label.toUpperCase() : '',
     }));
     const ws1 = XLSX.utils.json_to_sheet(d1);
@@ -356,11 +357,11 @@ const DATA = (function() {
       'Ürün Kodu': t.urunKodu,
       'Renk': t.renk,
       'Beden': t.beden,
-      'Adet': t.adet,
       'Gün': t.days || '',
       'Takım': t.takimDurumu || '',
       'Güven %': t.guvenEndeksi || t.confidence || '',
       'Neden': t.neden,
+      'Adet': t.adet,
       'HEDEF MAĞAZA': t.hedef.label.toUpperCase(),
     }));
     const ws2 = XLSX.utils.json_to_sheet(d2);
@@ -551,3 +552,6 @@ const DATA = (function() {
     exportBekleyen,
   };
 })();
+
+// Global erişim için window objesine ekle
+if (typeof window !== "undefined") window.DATA = DATA;
