@@ -273,6 +273,158 @@ const ALGO = (function() {
     return false;
   }
 
+
+
+  // ============================================================
+  // v8.2 TİCARİ KONTROL KATMANI — Hülya test paketi
+  // Amaç: yanlış kırık beden toplama, full asorti mağazaya gönderim,
+  //       aynı SKU tekrar döndürme ve transfer sonrası hasarı engellemek.
+  // ============================================================
+  const COMMERCIAL_RULES = {
+    MIN_TARGET_PRODUCT_SALES: 1,          // Satışsız hedefe transfer yok
+    FULL_ASSORTMENT_PENALTY: -1000,       // Full asortili hedefe gereksiz ürün gönderme
+    SAME_ITEM_TARGET_LOCK: true,          // Aynı ürün+renk+beden aynı çalışmada tek hedef
+    PROTECT_SOURCE_ASSORTMENT: true,      // Kaynağı kırık hale getiren transferi engelle
+    CONSOLIDATION_MAX_TOTAL_STOCK: 6,     // Toplam stok ≤6 ise konsolidasyon modu
+    CONSOLIDATION_MIN_STORE_COUNT: 3,     // 3+ mağazada dağınıksa konsolide et
+  };
+
+  function stockOfSize(storeData, beden) {
+    const sd = storeData && storeData.sizes ? storeData.sizes[beden] : null;
+    return sd ? (Number(sd.stok) || 0) : 0;
+  }
+
+  function salesOfSize(storeData, beden) {
+    const sd = storeData && storeData.sizes ? storeData.sizes[beden] : null;
+    return sd ? (Number(sd.satis) || 0) : 0;
+  }
+
+  function getAllProductSizes(pdata) {
+    const set = new Set();
+    for (const sd of Object.values(pdata.stores || {})) {
+      for (const b of Object.keys(sd.sizes || {})) if (String(b).toUpperCase() !== 'STD') set.add(b);
+    }
+    for (const dd of Object.values(pdata.depots || {})) {
+      for (const b of Object.keys(dd.sizes || {})) if (String(b).toUpperCase() !== 'STD') set.add(b);
+    }
+    return Array.from(set);
+  }
+
+  function getStockedSizes(storeData) {
+    return Object.entries((storeData && storeData.sizes) || {})
+      .filter(([b, sd]) => String(b).toUpperCase() !== 'STD' && (Number(sd.stok) || 0) > 0)
+      .map(([b]) => b);
+  }
+
+  function storeHasFullAssortment(pdata, storeKey) {
+    const all = getAllProductSizes(pdata);
+    if (all.length <= 1) return false;
+    const st = pdata.stores[storeKey];
+    if (!st) return false;
+    return all.every(b => stockOfSize(st, b) > 0);
+  }
+
+  function wouldCreateKirikAfterRemoval(pdata, storeKey, beden, qty) {
+    if (!COMMERCIAL_RULES.PROTECT_SOURCE_ASSORTMENT) return false;
+    if (isKirikMuaf(pdata.meta.anaGrup, pdata.meta.altGrup, beden)) return false;
+    const st = pdata.stores[storeKey];
+    if (!st) return false;
+    const all = getAllProductSizes(pdata);
+    const threshold = getKirikThreshold(all.length);
+    if (threshold === 0) return false;
+    const remaining = [];
+    for (const [b, sd] of Object.entries(st.sizes || {})) {
+      if (String(b).toUpperCase() === 'STD') continue;
+      const after = (Number(sd.stok) || 0) - (b === beden ? (qty || 1) : 0);
+      if (after > 0) remaining.push(b);
+    }
+    return remaining.length > 0 && remaining.length <= threshold;
+  }
+
+  function calcTargetNeedScore(pdata, targetKey, beden) {
+    const target = pdata.storePerformance[targetKey] || pdata.stores[targetKey];
+    const st = pdata.stores[targetKey];
+    if (!target || !st) return -9999;
+
+    // Satışsız mağazaya ürün gitmesin.
+    if ((target.satis || st.totalSatis || 0) < COMMERCIAL_RULES.MIN_TARGET_PRODUCT_SALES) return -9999;
+
+    // Full asortili mağaza zaten tamam; kırık/eksik beden toplama hedefi olmasın.
+    if (storeHasFullAssortment(pdata, targetKey)) return COMMERCIAL_RULES.FULL_ASSORTMENT_PENALTY;
+
+    const bedenStok = stockOfSize(st, beden);
+    const bedenSatis = salesOfSize(st, beden);
+    let score = 0;
+
+    // En yüksek öncelik: o bedende satış var ama stok yok.
+    if (bedenStok === 0 && bedenSatis > 0) score += 80;
+    else if (bedenStok === 0) score += 55;
+    else if (bedenStok === 1 && bedenSatis > 0) score += 25;
+    else if (bedenStok >= 1) score -= 70;
+
+    // Ürün toplam satışı, fakat tek başına karar vermesin.
+    const totalSales = target.satis || st.totalSatis || 0;
+    score += Math.min(totalSales, 10) * 4;
+
+    // Hedef mağazanın ilgili beden DNA'sı.
+    score += getBedenCurve(beden, targetKey) * 0.8;
+
+    // Velocity destekleyici olsun, belirleyici olmasın.
+    score += ((target.velocityScore || target.performance || 0) * 35);
+
+    // Rank küçükse hafif öncelik.
+    score += Math.max(0, 8 - ((st.meta && st.meta.rank) || 8));
+    return score;
+  }
+
+  function bestTargetForSize(pdata, beden, excludeStoreKey, locks) {
+    const rows = [];
+    for (const [tsk] of Object.entries(pdata.storePerformance || {})) {
+      if (tsk === excludeStoreKey) continue;
+      const lockKey = `${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${tsk}`;
+      if (locks && locks.has(lockKey)) continue;
+      const score = calcTargetNeedScore(pdata, tsk, beden);
+      if (score <= -900) continue;
+      rows.push({ store: pdata.storePerformance[tsk].store, key: tsk, score, velocityScore: pdata.storePerformance[tsk].velocityScore || 0, performance: pdata.storePerformance[tsk].performance || 0, totalSatis: pdata.storePerformance[tsk].satis || 0, bedenCurve: getBedenCurve(beden, tsk) });
+    }
+    rows.sort((a, b) => b.score - a.score);
+    return rows[0] || null;
+  }
+
+  function bestConsolidationTarget(pdata, bedenList, excludeStoreKey, locks) {
+    const candidates = [];
+    for (const [tsk, perf] of Object.entries(pdata.storePerformance || {})) {
+      if (tsk === excludeStoreKey) continue;
+      if ((perf.satis || 0) < COMMERCIAL_RULES.MIN_TARGET_PRODUCT_SALES) continue;
+      if (storeHasFullAssortment(pdata, tsk)) continue;
+      let total = 0;
+      let allowed = true;
+      for (const b of bedenList) {
+        const lockKey = `${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${b}|${tsk}`;
+        if (locks && locks.has(lockKey)) { allowed = false; break; }
+        total += calcTargetNeedScore(pdata, tsk, b);
+      }
+      if (allowed) candidates.push({ store: perf.store, key: tsk, score: total, velocityScore: perf.velocityScore || 0, performance: perf.performance || 0, totalSatis: perf.satis || 0 });
+    }
+    candidates.sort((a, b) => b.score - a.score);
+    return candidates[0] || null;
+  }
+
+  function addTransferLock(locks, pdata, beden, hedefKey) {
+    if (!locks) return;
+    locks.add(`${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${hedefKey}`);
+  }
+
+  function detectConsolidationNeed(pdata) {
+    let totalStock = 0;
+    let storeCount = 0;
+    for (const st of Object.values(pdata.stores || {})) {
+      const s = Object.values(st.sizes || {}).reduce((a, x) => a + (Number(x.stok) || 0), 0);
+      if (s > 0) { totalStock += s; storeCount++; }
+    }
+    return totalStock > 0 && totalStock <= COMMERCIAL_RULES.CONSOLIDATION_MAX_TOTAL_STOCK && storeCount >= COMMERCIAL_RULES.CONSOLIDATION_MIN_STORE_COUNT;
+  }
+
   // ===== ANA ANALİZ =====
   function analyze(rawData, takimMap, options) {
     const opts=options||{};
@@ -295,6 +447,8 @@ const ALGO = (function() {
     const productMap={};
     const storeStatsMap={};
     const storeTrfCount={};
+    const transferLocks=new Set();     // ürün|renk|beden|hedef kilidi
+    const sourceLocks=new Set();       // ürün|renk|beden|gönderen kilidi
 
     // ===== VERİ OKUMA =====
     for (const row of rawData) {
@@ -437,12 +591,13 @@ const ALGO = (function() {
             continue;
           }
           if (!hasAnySales) continue;
-          // Hedef: velocity skoru yüksek + bu bedeni eksik
+          // v8.2 Hedef: sadece satış değil, BEDEN İHTİYACI + full asorti koruma + kilit
           const cands=Object.entries(pdata.storePerformance)
-            .filter(([k,p])=>p.satis>0&&(!p.sizes[beden]||p.sizes[beden].stok===0))
-            .sort((a,b)=>b[1].velocityScore-a[1].velocityScore);
+            .map(([k,p])=>[k,p,calcTargetNeedScore(pdata,k,beden)])
+            .filter(([k,p,score])=>score>-900 && !transferLocks.has(`${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${k}`))
+            .sort((a,b)=>b[2]-a[2]);
           if (cands.length===0) continue;
-          for (const [tsk,tp] of cands) {
+          for (const [tsk,tp,targetScore] of cands) {
             if (!storeTrfCount[tsk]) storeTrfCount[tsk]=0;
             if (storeTrfCount[tsk]>=STORE_LIMIT) continue;
             const qty=Math.min(dd.stok,1);
@@ -478,8 +633,10 @@ const ALGO = (function() {
               velocityScore:Math.round(tp.velocityScore*100),
               guvenEndeksi:guvenEnd_,
               confidence:guvenEnd_,
-              neden:ddata.meta.label+' → '+tp.store.label+': Hedefte '+tp.satis+' satış, beden eksik (Güven %'+guvenEnd_+')',
+              neden:ddata.meta.label+' → '+tp.store.label+': hedefte beden ihtiyacı + satış var; ticari skor '+Math.round(targetScore)+' (Güven %'+guvenEnd_+')',
+              ticariSkor:Math.round(targetScore),
             });
+            addTransferLock(transferLocks,pdata,beden,tp.store.key);
             result.stats.transferableCount++;
             break;
           }
@@ -493,6 +650,7 @@ const ALGO = (function() {
     for (const t of result.depoTransfers) {
       const hedefKey = t.distrib[0]?.store?.key || t.hedef?.key;
       depoTaken.add(`${t.urunKodu}|${t.renkKodu}|${t.beden}|${hedefKey}`);
+      transferLocks.add(`${t.urunKodu}|${t.renkKodu}|${t.beden}|${hedefKey}`);
     }
     
     // ===== KIRIK BEDEN (v8.1 — Yeni Kurallar) =====
@@ -548,13 +706,15 @@ const ALGO = (function() {
         if (days!==null&&days<dayThreshold) continue;
         if (!hasAnySales) continue;
 
-        // Hedef: bu üründe satış yapan + velocity yüksek mağaza
-        const cands=Object.entries(pdata.storePerformance)
-          .filter(([k,p])=>k!==sk&&p.satis>0)
-          .sort((a,b)=>b[1].velocityScore-a[1].velocityScore);
-        if (cands.length===0) continue;
+        // v8.2 Hedef: kırığı full asortili mağazaya değil, eksik bedeni olan güçlü mağazaya topla
+        const konsolideModu = detectConsolidationNeed(pdata);
+        const targetObj = konsolideModu
+          ? bestConsolidationTarget(pdata, stokluB, sk, transferLocks)
+          : bestConsolidationTarget(pdata, stokluB, sk, transferLocks);
+        if (!targetObj) continue;
+        const cands=[[targetObj.key, { store: targetObj.store, velocityScore: targetObj.velocityScore, performance: targetObj.performance, satis: targetObj.totalSatis }]];
 
-        const target=cands[0][1].store;
+        const target=targetObj.store;
         const toplam_stok=stokluB.reduce((s,b)=>s+(sdata.sizes[b]?.stok||0),0);
         // Güven Endeksi - Kırık beden
         const kHp=pdata.storePerformance[target.key];
@@ -596,8 +756,10 @@ const ALGO = (function() {
           velocityScore:Math.round(cands[0][1].velocityScore*100),
           guvenEndeksi:guvenK_,
           confidence:guvenK_,
-          neden:`Kırık beden: ${stokluB.length}/${toplamSize} stoklu (eşik:${kirikEsik}) → ${target.label} [${stokluB.join(',')}] (Güven %${guvenK_})`,
+          neden:`Kırık beden konsolidasyonu: ${stokluB.length}/${toplamSize} stoklu (eşik:${kirikEsik}) → ${target.label} [${stokluB.join(',')}] (Güven %${guvenK_})`,
+          konsolidasyonModu:konsolideModu,
         });
+        for (const sB of stokluB) addTransferLock(transferLocks,pdata,sB,target.key);
         result.stats.kirikCount++;
         result.stats.transferableCount++;
       }
@@ -623,35 +785,15 @@ const ALGO = (function() {
           if (days===null||days<dayThreshold) { result.stats.waitingCount++; continue; }
           if (!hasAnySales) { result.stats.waitingCount++; continue; }
 
-          // Hedef: bu bedeni eksik + satışı olan mağazalar (velocity sırası)
-          const hedefA=[];
-          for (const tsk of Object.keys(pdata.storePerformance)) {
-            if (tsk===sk) continue;
-            const tp=pdata.storePerformance[tsk];
-            if (tp.satis===0) continue;
-            const td=tp.sizes[beden];
-            if (!td||td.stok===0) {
-              hedefA.push({
-                store:tp.store,velocityScore:tp.velocityScore,
-                performance:tp.performance,totalSatis:tp.satis,
-                bedenCurve:getBedenCurve(beden,tsk),
-              });
-            }
-          }
-          if (hedefA.length===0) continue;
-
-          // v8.1: velocity + beden eğrisi ile sırala
-          hedefA.sort((a,b)=>{
-            const sA=a.velocityScore*0.7+(a.bedenCurve/100)*0.3;
-            const sB=b.velocityScore*0.7+(b.bedenCurve/100)*0.3;
-            return sB-sA;
-          });
-
-          const hedef=hedefA[0];
+          // v8.2 Hedef: ticari ihtiyaç skoru; ayrıca kaynak hasarını engelle
+          if (wouldCreateKirikAfterRemoval(pdata, sk, beden, 1)) { result.stats.waitingCount++; continue; }
+          const hedef=bestTargetForSize(pdata, beden, sk, transferLocks);
+          if (!hedef) continue;
           const gondPerf=pdata.storePerformance[sk]?.performance||0.2;
           // TEK KAYNAK KURALI: Depo→Mağaza'da zaten önerildiyse, mağaza→mağaza ekleme
           const tkKey = `${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${hedef.store.key}`;
-          if (depoTaken.has(tkKey)) continue;
+          const srcKey = `${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${sk}`;
+          if (depoTaken.has(tkKey) || transferLocks.has(tkKey) || sourceLocks.has(srcKey)) continue;
           
           magCands.push({kaynak:{sk,sdata,beden,sd,days,gondPerf},hedef,pdata,dayThreshold});
         }
@@ -704,8 +846,11 @@ const ALGO = (function() {
         velocityScore:Math.round(c.hedef.velocityScore*100),
         confidence:guvenM_,
         guvenEndeksi:guvenM_,
-        neden:c.kaynak.sdata.meta.label+' → '+c.hedef.store.label+': '+c.kaynak.days+'g bekledi, hedefte '+(hp?hp.satis:0)+' satış (Güven %'+guvenM_+')',
+        neden:c.kaynak.sdata.meta.label+' → '+c.hedef.store.label+': '+c.kaynak.days+'g bekledi; hedefte beden ihtiyacı var, full-asorti değil (Güven %'+guvenM_+')',
+        ticariSkor:Math.round(c.hedef.score||0),
       });
+      addTransferLock(transferLocks,c.pdata,c.kaynak.beden,c.hedef.store.key);
+      sourceLocks.add(`${c.pdata.meta.urunKodu}|${c.pdata.meta.renkKodu}|${c.kaynak.beden}|${c.kaynak.sk}`);
       result.stats.transferableCount++;
     }
 
@@ -738,13 +883,12 @@ const ALGO = (function() {
       const stokluB=Object.keys(kalanSizes);
       if (stokluB.length===0||stokluB.length>kirikEsik) continue;
 
-      // Transfer sonrası kırık oluştu → ekstra transfer öner
-      const cands2=Object.entries(pdata.storePerformance)
-        .filter(([k,p])=>k!==sk&&p.satis>0)
-        .sort((a,b)=>b[1].velocityScore-a[1].velocityScore);
-      if (cands2.length===0) continue;
+      // Transfer sonrası kırık oluştu → v8.2 sadece gerçekten ihtiyacı olan hedefe öner
+      const targetObj2=bestConsolidationTarget(pdata, stokluB, sk, transferLocks);
+      if (!targetObj2) continue;
+      const cands2=[[targetObj2.key,{store:targetObj2.store,velocityScore:targetObj2.velocityScore,performance:targetObj2.performance,satis:targetObj2.totalSatis}]];
 
-      const target2=cands2[0][1].store;
+      const target2=targetObj2.store;
       const adet2=stokluB.reduce((s,b)=>s+(kalanSizes[b]||0),0);
 
       // Daha önce aynı kırık beden eklenmemiş mi kontrol et
@@ -767,6 +911,7 @@ const ALGO = (function() {
           neden:`⚡ Transfer sonrası kırık: ${stokluB.length}/${toplamSize} beden kaldı → ${target2.label}`,
           postTransfer:true,
         });
+        for (const sB of stokluB) addTransferLock(transferLocks,pdata,sB,target2.key);
         result.stats.kirikCount++;
         result.stats.transferableCount++;
       }
@@ -868,7 +1013,8 @@ const ALGO = (function() {
     calculatePerformance,calcVelocity,getCategory,getBedenCurve,
     getKirikThreshold,isKirikMuaf,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.1',
+    VERSION:'v8.2-HULYA',
+    COMMERCIAL_RULES,
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
