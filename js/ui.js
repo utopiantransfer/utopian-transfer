@@ -844,3 +844,6 @@ const UI = (function() {
     gotoPage,
   };
 })();
+
+// Global erişim için window objesine ekle
+if (typeof window !== "undefined") window.UI = UI;
