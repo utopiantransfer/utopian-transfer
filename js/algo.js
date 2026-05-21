@@ -1,7 +1,7 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.1 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.4 — HÜLYA FINAL ALGORİTMA MODÜLÜ
 //
-// KIRIK BEDEN KURALLARI (v8.1 — Romina onaylı):
+// KIRIK BEDEN KURALLARI (v8.4 — Hülya final kurgusu):
 //   3 size üretim  → mağazada 1 size stoklu         = KIRIK
 //   4 size üretim  → mağazada ≤2 size stoklu        = KIRIK
 //   5 size üretim  → mağazada ≤2 size stoklu        = KIRIK
@@ -17,12 +17,16 @@
 //   1.1.1900 = veri hatası → transfere dahil etme
 //   1.1.1990 = ürün yolda (henüz mağazaya ulaşmamış) → transfere dahil etme
 //
-// v8.1 YENİ:
+// v8.4 HÜLYA FINAL:
 //   - Kırık beden tanımı boyuta göre dinamik eşik
 //   - Velocity skoru: Bayes(%40) + Haftalık hız(%60)
 //   - Transfer sonrası kırık beden tespiti
 //   - Çanta/Aksesuar STD → kırık sayılmaz
 //   - Mağaza × Beden eğrisi (NEBİM verisinden)
+//   - Satış var + stok 0 önceliği
+//   - Full asorti koruma
+//   - Beden bazlı kırık ürün dağıtımı
+//   - Aynı SKU/renk/beden tekrar transfer kilidi
 // ============================================================
 
 const ALGO = (function() {
@@ -999,7 +1003,7 @@ const ALGO = (function() {
     calculatePerformance,calcVelocity,getCategory,getBedenCurve,
     getKirikThreshold,isKirikMuaf,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.1',
+    VERSION:'v8.4-hulya-final',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
