@@ -1,5 +1,14 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.3 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.4 — ALGORİTMA MODÜLÜ
+//
+// v8.4 DÜZELTMELERİ (kullanıcı geri bildirimi — ABİYE 58470 İzmir çelişkisi):
+//  10. KAYNAK/HEDEF ÇELİŞKİSİ — DEPO vs KIRIK AÇIĞI KAPATILDI. Bir mağazaya
+//      depo→mağaza ile ürün gönderilirken, aynı çalışmada kırık beden modülü
+//      o mağazadan ürün ÇIKARABİLİYORDU (mağaza hem alıcı hem verici). Artık
+//      kırık modülü, o ürün için ZATEN HEDEF olan mağazayı kaynak yapmaz.
+//  11. SON ÇELİŞKİ DENETİMİ — Tüm modüller bittikten sonra çıktının tamamı
+//      taranır; aynı ürün+renkte hem kaynak hem hedef olan mağaza KALMADIĞI
+//      garanti edilir. Artık bu sınıf hata yapısal olarak imkânsızdır.
 //
 // v8.3 DÜZELTMELERİ (kullanıcı geri bildirimi — ABİYE 58464):
 //   8. KIRIK BEDEN — HER BEDEN AYRI YÖNLENDİRİLİR. Eski sürümde bir kırık
@@ -398,6 +407,11 @@ const ALGO = (function() {
     skor += Math.min(perf.satis || 0, 12) * 3;
     // 5) Mağaza genel hızı — sınırlı ağırlık
     skor += Math.min(perf.velocityScore || 0, 2) * 3;
+    // NOT (kullanıcı onaylı kural): Bir bedeni HİÇBİR mağaza satmamışsa,
+    //   kriter 1 tüm adaylar için 0 olur; bu durumda kazanan, koleksiyon
+    //   derinliği (kriter 3) + rengin toplam satışı (kriter 4) en yüksek
+    //   olan mağazadır — yani EN GÜÇLÜ / TAM KOLEKSİYONLU mağaza. Dağınık
+    //   beden orada tam seri içinde daha iyi satar.
     return skor;
   }
 
@@ -722,6 +736,11 @@ const ALGO = (function() {
       const brokenSources=[];
       for (const sk of Object.keys(pdata.stores)) {
         const sdata=pdata.stores[sk];
+        // v8.4 ÇELİŞKİ ENGELİ: Bu mağaza aynı ürün için ZATEN HEDEF ise
+        //   (örn. depo→mağaza bu mağazaya gönderim yaptıysa) kırık KAYNAĞI
+        //   yapılamaz. Aksi halde aynı çalışmada mağazaya hem ürün gelir hem
+        //   ürün çıkar (İzmir hatası). Mağaza tamamlanıyorsa stoğu sökülmez.
+        if (!canBeSource(pkey,sk)) continue;
         const stokluB=[]; let minGiris=null;
         for (const [b,sd] of Object.entries(sdata.sizes)) {
           if (String(b).toUpperCase()==='STD') continue;
@@ -794,9 +813,13 @@ const ALGO = (function() {
             isDepoTransfer:false,isKirikBeden:true,
             stokluBedenSayisi:src.stokluB.length,toplamBedenSayisi:toplamSize,
           });
+          // v8.4: Hedef bu bedeni satmışsa kanıtlı satış potansiyeli yazılır.
+          //   Hiçbir mağaza bu bedeni satmamışsa (kullanıcı onaylı kural) beden,
+          //   en güçlü/tam koleksiyonlu mağazada konsolide edilir — scoreSizeTarget
+          //   koleksiyon derinliği + rengin toplam satışına göre bunu zaten seçer.
           const satisNot=(kHsize&&kHsize.satis>0)
             ? ` — ${target.label} bu bedeni ${kHsize.satis} adet satmış (satış potansiyeli)`
-            : '';
+            : ` — bu bedende kanıtlı satış yok → en güçlü/tam koleksiyonlu mağazada konsolidasyon`;
           const konsNot=(kaynakList.length>1)
             ? ` [${kaynakList.length} mağazadan ${target.label}'e konsolidasyon]` : '';
           result.kirikBeden.push({
@@ -1002,7 +1025,8 @@ const ALGO = (function() {
           stokluBedenSayisi:stokluB.length,toplamBedenSayisi:toplamSize,
         });
         const satisNot=(t2Size&&t2Size.satis>0)
-          ? ` — ${target2.label} bu bedeni ${t2Size.satis} adet satmış (satış potansiyeli)` : '';
+          ? ` — ${target2.label} bu bedeni ${t2Size.satis} adet satmış (satış potansiyeli)`
+          : ` — bu bedende kanıtlı satış yok → en güçlü/tam koleksiyonlu mağazada konsolidasyon`;
         result.kirikBeden.push({
           gonderen:sdata.meta,hedef:target2,
           urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
@@ -1023,6 +1047,59 @@ const ALGO = (function() {
         result.stats.kirikCount++;
         result.stats.transferableCount++;
       }
+    }
+
+    // ===== v8.4 — SON ÇELİŞKİ DENETİMİ (KESİN GARANTİ) =====
+    // KURAL: Hiçbir mağaza aynı ürün+renk için aynı transfer çalışmasında
+    //   hem KAYNAK hem HEDEF olamaz. Üst modüllerdeki rol kilidi (roleMap)
+    //   bunu zaten engeller; bu son tarama, ileride yeni bir modül eklense
+    //   dahi çıktıda çelişki KALMAMASINI garanti eder.
+    // ÇÖZÜM POLİTİKASI (kullanıcı talebi): "Kırık bedeni mağazadan almak
+    //   doğrudur" → KAYNAK rolü korunur; çelişen mağazaya GELEN transferler
+    //   iptal edilip 'bekleyen' listesine taşınır (şeffaflık).
+    {
+      const _pk = t => `${t.urunKodu}|${t.renkKodu}`;
+      const _src = t => (t.gonderen && t.gonderen.key) || (t.kaynak && t.kaynak.key) || null;
+      const _tgt = t => (t.hedef && t.hedef.key) || null;
+      const kaynakSet = {}, hedefSet = {};
+      const tara = list => { for (const t of list) {
+        const pk=_pk(t), s=_src(t), h=_tgt(t);
+        if (s) (kaynakSet[pk]=kaynakSet[pk]||new Set()).add(s);
+        if (h) (hedefSet[pk]=hedefSet[pk]||new Set()).add(h);
+      } };
+      tara(result.depoTransfers); tara(result.magTransfers); tara(result.kirikBeden);
+
+      // Çelişkili (ürün+renk → mağaza) kümesi
+      const cakisan = {};
+      for (const pk in kaynakSet) {
+        if (!hedefSet[pk]) continue;
+        for (const st of kaynakSet[pk]) if (hedefSet[pk].has(st)) (cakisan[pk]=cakisan[pk]||new Set()).add(st);
+      }
+
+      let cozulenCakisma = 0;
+      if (Object.keys(cakisan).length) {
+        // KAYNAK rolü korunur → çelişen mağazaya GELEN transferleri ayıkla
+        const temizle = list => list.filter(t => {
+          const pk=_pk(t), h=_tgt(t);
+          if (h && cakisan[pk] && cakisan[pk].has(h)) {
+            cozulenCakisma++;
+            result.bekleyen.push({
+              kaynak:(t.gonderen||t.kaynak||{label:'?'}),
+              urunKodu:t.urunKodu,urunAdi:t.urunAdi,
+              renkKodu:t.renkKodu,renk:t.renk,beden:t.beden,stok:t.adet||1,
+              anaGrup:t.anaGrup,altGrup:t.altGrup,
+              sezonTipi:t.sezonTipi||'',
+              neden:`Çelişki giderildi: ${h} mağazası aynı üründe kaynak rolünde olduğu için bu gelen transfer iptal edildi`,
+            });
+            return false;
+          }
+          return true;
+        });
+        result.depoTransfers = temizle(result.depoTransfers);
+        result.magTransfers  = temizle(result.magTransfers);
+        result.kirikBeden    = temizle(result.kirikBeden);
+      }
+      result.stats.cozulenCakisma = cozulenCakisma;
     }
 
     // ===== ENVANTER ÖZETİ (UI uyumlu — tüm field'lar) =====
@@ -1122,7 +1199,7 @@ const ALGO = (function() {
     getKirikThreshold,isKirikMuaf,
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.3',
+    VERSION:'v8.4',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
