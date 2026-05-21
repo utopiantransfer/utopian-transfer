@@ -1,5 +1,5 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.4 — HÜLYA FINAL ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.5 — HÜLYA FINAL ALGORİTMA MODÜLÜ
 //
 // KIRIK BEDEN KURALLARI (v8.4 — Hülya final kurgusu):
 //   3 size üretim  → mağazada 1 size stoklu         = KIRIK
@@ -17,7 +17,7 @@
 //   1.1.1900 = veri hatası → transfere dahil etme
 //   1.1.1990 = ürün yolda (henüz mağazaya ulaşmamış) → transfere dahil etme
 //
-// v8.4 HÜLYA FINAL:
+// v8.5 HÜLYA FINAL:
 //   - Kırık beden tanımı boyuta göre dinamik eşik
 //   - Velocity skoru: Bayes(%40) + Haftalık hız(%60)
 //   - Transfer sonrası kırık beden tespiti
@@ -529,6 +529,54 @@ const ALGO = (function() {
       return { score, reason:reason.join(' + ') };
     }
 
+    // HÜLYA v8.5: Kırık temizleme hedefi.
+    // Amaç: Bir mağazadan 1 beden alınca kaynak mağazada tek beden kırık kalmasın.
+    // Bu modda hedefte aynı beden stoklu olsa bile, o BEDENDE satış varsa gönderim kabul edilir.
+    // Örnek: Panora'dan 36 Gordion'a gitti, Panora'da 40 tek kaldı.
+    // Bursa'da 40 beden satış var ve stok 1 ise 40 Bursa'ya konsolide edilebilir.
+    function cleanupTargetScore(pdata, storeKey, beden) {
+      const sp = pdata.storePerformance[storeKey];
+      if (!sp) return { score:-999, reason:'hedef performans yok' };
+      const sd = sizeData(pdata, storeKey, beden);
+      const model = (modelPerformance[pdata.meta.urunKodu] || {})[storeKey] || { satis:0, stok:0 };
+      let score = 0;
+      let reason = [];
+
+      // Aynı bedende satış en önemli kriterdir. Stok 1 olsa bile satış varsa desteklenir.
+      if (sd.satis > 0) {
+        score += 130;
+        reason.push('aynı bedende satış var');
+        if (sd.stok === 0) { score += 35; reason.push('aynı beden stok 0'); }
+        else if (sd.stok === 1) { score += 22; reason.push('aynı beden stok 1, satış desteklenir'); }
+        else { score += 8; reason.push('aynı beden stoklu ama satış var'); }
+      }
+      else if (sp.satis > 0 && sd.stok === 0) {
+        score += 70;
+        reason.push('ürün/renginde satış var + bu beden eksik');
+      }
+      else if (model.satis > 0 && sd.stok === 0) {
+        score += 35;
+        reason.push('model satışı var + beden eksik');
+      }
+      else {
+        score -= 80;
+        reason.push('satış kanıtı zayıf');
+      }
+
+      // Full asortili ve çok stoklu mağazaya gereksiz yığma yapma.
+      if (isFullAssorti(pdata, storeKey) && sd.stok >= 2) {
+        score -= 60;
+        reason.push('full asorti + fazla stok');
+      }
+
+      score += (sp.velocityScore || sp.performance || 0) * 30;
+      score += Math.min(18, (sp.satis || 0) * 3);
+      score += Math.min(10, getBedenCurve(beden, storeKey) / 3);
+      score += Math.max(0, 8 - (sp.store.rank || 8));
+
+      return { score, reason:reason.join(' + ') };
+    }
+
     const globalTransferLock = new Set();
     function lockKey(pdata, beden) { return `${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}`; }
     function isLocked(pdata, beden) { return globalTransferLock.has(lockKey(pdata, beden)); }
@@ -675,9 +723,12 @@ const ALGO = (function() {
         if (days!==null&&days<dayThreshold) continue;
         if (!hasAnySales) continue;
 
-        // HÜLYA v8.4: Kırık bedenleri topluca tek mağazaya yığma.
-        // Her kalan beden ayrı değerlendirilir. Gordion'da 36 satış var + stok 0 ise 36 öncelikle Gordion'a gider.
+        // HÜLYA v8.5: Kırık bedenleri önce gerçek eksik beden ihtiyacına gönder.
+        // Sonra kaynak mağazada tek/kırık beden kalıyorsa, kalan bedenleri satış potansiyeli olan mağazaya konsolide et.
         const byTarget = {};
+        const plannedOut = new Set();
+
+        // 1) Gerçek beden ihtiyacı: satış var + stok 0 gibi net eksik bedenleri tamamla.
         for (const kb of stokluB) {
           if (isLocked(pdata, kb)) continue;
           const cands = Object.entries(pdata.storePerformance)
@@ -686,7 +737,7 @@ const ALGO = (function() {
               const sc = smartTargetScore(pdata, k, kb, 'kirik');
               return [k, Object.assign({}, p, { smartScore:sc.score, smartReason:sc.reason })];
             })
-            .filter(([k,p]) => p.smartScore >= 45)
+            .filter(([k,p]) => p.smartScore >= 95) // Sadece gerçekten güçlü ihtiyaçları önce al.
             .sort((a,b) => b[1].smartScore - a[1].smartScore);
           if (cands.length === 0) continue;
           const [targetKey, targetPerf] = cands[0];
@@ -694,7 +745,55 @@ const ALGO = (function() {
           byTarget[targetKey].bedenler.push(kb);
           byTarget[targetKey].adet += (sdata.sizes[kb]?.stok || 0);
           byTarget[targetKey].reasons.push(`${kb}: ${targetPerf.smartReason}`);
+          plannedOut.add(kb);
           setLocked(pdata, kb);
+        }
+
+        // 2) Transfer sonrası kaynakta kırık/tek beden kalacak mı? Kalıyorsa onu da temizle.
+        const remainingBedenler = stokluB.filter(b => !plannedOut.has(b));
+        const remainingCount = remainingBedenler.length;
+        if (plannedOut.size > 0 && remainingCount > 0 && remainingCount <= kirikEsik) {
+          for (const rb of remainingBedenler) {
+            if (isLocked(pdata, rb)) continue;
+            const cleanCands = Object.entries(pdata.storePerformance)
+              .filter(([k,p]) => k !== sk)
+              .map(([k,p]) => {
+                const sc = cleanupTargetScore(pdata, k, rb);
+                return [k, Object.assign({}, p, { smartScore:sc.score, smartReason:sc.reason })];
+              })
+              .filter(([k,p]) => p.smartScore >= 75)
+              .sort((a,b) => b[1].smartScore - a[1].smartScore);
+            if (cleanCands.length === 0) continue;
+            const [targetKey, targetPerf] = cleanCands[0];
+            if (!byTarget[targetKey]) byTarget[targetKey] = { perf:targetPerf, bedenler:[], adet:0, reasons:[] };
+            byTarget[targetKey].bedenler.push(rb);
+            byTarget[targetKey].adet += (sdata.sizes[rb]?.stok || 0);
+            byTarget[targetKey].reasons.push(`${rb}: kırık temizleme → ${targetPerf.smartReason}`);
+            plannedOut.add(rb);
+            setLocked(pdata, rb);
+          }
+        }
+
+        // 3) Eğer gerçek eksik beden bulunamadıysa klasik konsolidasyon çalışsın.
+        if (plannedOut.size === 0) {
+          for (const kb of stokluB) {
+            if (isLocked(pdata, kb)) continue;
+            const cands = Object.entries(pdata.storePerformance)
+              .filter(([k,p]) => k !== sk)
+              .map(([k,p]) => {
+                const sc = cleanupTargetScore(pdata, k, kb);
+                return [k, Object.assign({}, p, { smartScore:sc.score, smartReason:sc.reason })];
+              })
+              .filter(([k,p]) => p.smartScore >= 75)
+              .sort((a,b) => b[1].smartScore - a[1].smartScore);
+            if (cands.length === 0) continue;
+            const [targetKey, targetPerf] = cands[0];
+            if (!byTarget[targetKey]) byTarget[targetKey] = { perf:targetPerf, bedenler:[], adet:0, reasons:[] };
+            byTarget[targetKey].bedenler.push(kb);
+            byTarget[targetKey].adet += (sdata.sizes[kb]?.stok || 0);
+            byTarget[targetKey].reasons.push(`${kb}: konsolidasyon → ${targetPerf.smartReason}`);
+            setLocked(pdata, kb);
+          }
         }
 
         for (const targetKey of Object.keys(byTarget)) {
@@ -1003,7 +1102,7 @@ const ALGO = (function() {
     calculatePerformance,calcVelocity,getCategory,getBedenCurve,
     getKirikThreshold,isKirikMuaf,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.4-hulya-final',
+    VERSION:'v8.5-hulya-final',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
