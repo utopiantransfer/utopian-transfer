@@ -1,5 +1,24 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.4 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.6 — ALGORİTMA MODÜLÜ
+//
+// v8.6 DÜZELTMELERİ (kullanıcı geri bildirimi — güven endeksi denetimi):
+//  14. GÜVEN HATASI — kaynakBeden_satis sabit 0. Kırık modüllerinde kaynak
+//      mağazanın o bedendeki satışı her zaman 0 varsayılıyordu → Kriter 3
+//      hep tam +15 veriyor, güveni yapay yükseltiyordu. Artık gerçek veriden
+//      okunuyor; kaynak o bedeni satmışsa güven doğru biçimde düşüyor.
+//  15. GÜVEN — Kriter 2 yeniden tasarlandı. "Hedefte stok varsa RİSK (+0)"
+//      mantığı v8.3+ kuralıyla çelişiyordu. Artık asıl sinyal "hedef o
+//      bedeni satmış mı"; stok yalnızca küçük bir ayar faktörü.
+//
+// v8.5 DÜZELTMELERİ (kullanıcı geri bildirimi — ABİYE 58470 İzmir konsolidasyonu):
+//  12. KONSOLİDASYON HUB'I — Bir ürün+renkte 2+ kırık mağaza varsa, talebi
+//      en güçlü olan kırık mağaza (kanıtlı satış) HUB seçilir. HUB gönderici
+//      yapılmaz; diğer kırık mağazaların bedenleri HUB'da toplanır ve HUB'ın
+//      eksik bedenleri tamamlanır. Tam koleksiyonlu mağaza eşit satışta bile
+//      tercih edilmez — kırık mağazanın ürüne ihtiyacı daha fazladır.
+//  13. ACİL İHTİYAÇ SİNYALİ — Bir bedeni "satmış + stoğu 0" olan mağaza, o
+//      beden için kesin ilk önceliktir; bu sinyal rengin toplam satışından
+//      daha güçlü ağırlıklandırıldı (ABİYE 58464 / 36 bedeni → Gordion).
 //
 // v8.4 DÜZELTMELERİ (kullanıcı geri bildirimi — ABİYE 58470 İzmir çelişkisi):
 //  10. KAYNAK/HEDEF ÇELİŞKİSİ — DEPO vs KIRIK AÇIĞI KAPATILDI. Bir mağazaya
@@ -178,11 +197,16 @@ const ALGO = (function() {
     else if (hedefSatis >= 1) skor += 25;
     else skor += 0;                         // Hedefte hiç satış yok → RİSK
     
-    // ===== Kriter 2: Hedefte bu BEDEN eksik mi (20 puan) =====
-    if (hedefBeden_stok === 0 && hedefBeden_satis > 0) skor += 20; // Eksik + talep var = mükemmel
-    else if (hedefBeden_stok === 0) skor += 15;                     // Eksik var
-    else if (hedefBeden_stok === 1) skor += 8;                      // Az stok
-    else skor += 0;                                                 // Yeterli stok = RİSK
+    // ===== Kriter 2: Hedefte bu BEDEN için talep/uygunluk (20 puan) =====
+    // v8.6 DÜZELTME: Eski mantık "hedefte stok varsa RİSK (+0)" diyordu; bu,
+    //   v8.3+ kuralıyla çelişiyordu (hedefte stok olması transfere engel
+    //   değil — asıl kriter o bedenin satış geçmişi). Artık asıl sinyal
+    //   "bu bedeni satmış mı"; stok yalnızca küçük bir ayar.
+    if (hedefBeden_satis > 0 && hedefBeden_stok === 0) skor += 20; // sattı + bitti = mükemmel
+    else if (hedefBeden_satis > 0)                     skor += 16; // sattı, biraz stok var = iyi
+    else if (hedefBeden_stok === 0)                    skor += 10; // satış yok ama boş yer var
+    else if (hedefBeden_stok <= 2)                     skor += 6;  // satış yok, az stok
+    else                                               skor += 2;  // satış yok, bol stok
     
     // ===== Kriter 3: Kaynak doğru mu (15 puan) =====
     if (isDepoTransfer) {
@@ -399,6 +423,12 @@ const ALGO = (function() {
     else if (sz.stok === 1) skor += 8;      // 1 stok — sorun değil
     else if (sz.stok === 2) skor += 0;      // 2 stok — nötr
     else skor -= 12;                        // 3+ zaten bol → daha az öncelikli
+    // 2b) ACİL İHTİYAÇ — bu bedeni SATMIŞ + stoğu 0 (kullanıcının ısrarla
+    //   vurguladığı "hem satış var hem stok=0 → kesin ilk öncelik" kuralı).
+    //   Beden bazlı bu sinyal, rengin toplam satışından (kriter 4) daha
+    //   güçlü olmalı — yoksa çok satan ama o bedende stoğu olan mağaza,
+    //   o bedeni gerçekten tüketmiş mağazayı yener (ABİYE 58464 / 36 bedeni).
+    if ((sz.satis || 0) > 0 && sz.stok === 0) skor += 30;
     // 3) YETİM ENGELİ — gelen beden hedefte de yapayalnız kalmasın.
     //    Bomboş + bu bedeni hiç satmamış mağaza kötü hedeftir.
     if (run.stokluSayisi === 0 && (sz.satis || 0) === 0) skor -= 300;
@@ -732,14 +762,12 @@ const ALGO = (function() {
       for (const sd of Object.values(pdata.stores)) toplamRenkStok+=sd.totalStok;
       const kritikThin=toplamRenkStok<=toplamSize; // ~1 adet/beden altı → stok bitmek üzere
 
-      // ===== AŞAMA 1: Kırık kaynakları topla =====
-      const brokenSources=[];
+      // ===== AŞAMA 1: Kırık mağazaları topla =====
+      const allKirik=[];
       for (const sk of Object.keys(pdata.stores)) {
         const sdata=pdata.stores[sk];
-        // v8.4 ÇELİŞKİ ENGELİ: Bu mağaza aynı ürün için ZATEN HEDEF ise
-        //   (örn. depo→mağaza bu mağazaya gönderim yaptıysa) kırık KAYNAĞI
-        //   yapılamaz. Aksi halde aynı çalışmada mağazaya hem ürün gelir hem
-        //   ürün çıkar (İzmir hatası). Mağaza tamamlanıyorsa stoğu sökülmez.
+        // ÇELİŞKİ ENGELİ: zaten hedef olan mağaza (depodan ürün aldı vb.)
+        //   kırık değerlendirmesine girmez.
         if (!canBeSource(pkey,sk)) continue;
         const stokluB=[]; let minGiris=null;
         for (const [b,sd] of Object.entries(sdata.sizes)) {
@@ -757,12 +785,52 @@ const ALGO = (function() {
         if (days!==null&&days<dayThreshold&&!kritikThin) continue;
 
         const toplam_stok=stokluB.reduce((s,b)=>s+(sdata.sizes[b]?.stok||0),0);
-        brokenSources.push({sk,sdata,stokluB,minGiris,days,toplam_stok});
+        allKirik.push({sk,sdata,stokluB,minGiris,days,toplam_stok});
       }
+      if (allKirik.length===0) continue;
+
+      // ===== KONSOLİDASYON HUB SEÇİMİ (v8.5) =====
+      // Kullanıcı geri bildirimi (ABİYE 58470 / İzmir):
+      //   "İzmir de bu üründen Panora ile AYNI satışa sahip; ama Panora'da stok
+      //    varken İzmir'in bu ürüne daha çok ihtiyacı var. İzmir'i gönderici
+      //    yapma — diğer mağazalardaki kırık bedenler İZMİR'DE toplansın."
+      // KURAL: Bir ürün+renkte 2+ kırık mağaza varsa, bunlardan TALEBİ EN
+      //   GÜÇLÜ olanı (kanıtlı satış) HUB olur. HUB yalnızca hedeftir; kendi
+      //   stoğu sökülmez. Diğer kırık mağazalar kaynak olur ve bedenlerini
+      //   HUB'a gönderir — böylece HUB'ın eksik bedenleri tamamlanır.
+      //   Tek kırık mağaza varsa HUB yoktur → beden bazlı dağıtım yapılır.
+      let hub=null, hubSatis=0;
+      if (allKirik.length>=2) {
+        const hubCands=allKirik.map(ks=>{
+          const perf=pdata.storePerformance[ks.sk];
+          const satis=perf?(perf.satis||0):0;
+          // sattığı ama stoğu 0 kalan beden sayısı = kanıtlı karşılanmamış ihtiyaç
+          let kanitliEksik=0;
+          if (perf&&perf.sizes) {
+            for (const sz of Object.values(perf.sizes)) {
+              if ((sz.satis||0)>0&&(sz.stok||0)===0) kanitliEksik++;
+            }
+          }
+          return {ks,satis,kanitliEksik,stokSize:ks.stokluB.length,
+                  rank:perf?perf.store.rank:99,canT:canBeTarget(pkey,ks.sk)};
+        }).filter(c=>c.satis>0&&c.canT);   // HUB: kanıtlı talebi olan + hedef olabilen
+        if (hubCands.length) {
+          hubCands.sort((a,b)=>
+            b.satis-a.satis||b.kanitliEksik-a.kanitliEksik||
+            b.stokSize-a.stokSize||a.rank-b.rank);
+          hub=hubCands[0].ks;
+          hubSatis=hubCands[0].satis;
+        }
+      }
+
+      // Kaynaklar = HUB hariç tüm kırık mağazalar
+      const brokenSources = hub ? allKirik.filter(k=>k.sk!==hub.sk) : allKirik;
       if (brokenSources.length===0) continue;
 
       // Kaynakları rol haritasına kaydet — bu mağazalar artık hedef OLAMAZ
       for (const src of brokenSources) rmAddSource(pkey,src.sk);
+      // HUB varsa hedef olarak kaydet
+      if (hub) rmAddTarget(pkey,hub.sk);
 
       // ===== AŞAMA 2: HER BEDEN KENDİ EN İYİ HEDEFİNE (v8.3) =====
       // ESKİ v8.2: kırık kaynağın TÜM bedenleri tek bir konsolidasyon hedefine
@@ -785,14 +853,22 @@ const ALGO = (function() {
       }
 
       for (const [beden, kaynakList] of Object.entries(bedenKaynaklari)) {
-        // Bu beden için en iyi hedef (kırık kaynaklar hariç)
-        const adaylar = Object.entries(pdata.storePerformance)
-          .filter(([k,p])=>!brokenSourceKeys.has(k)&&canBeTarget(pkey,k))
-          .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
-          .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
-        if (adaylar.length===0) continue;
-        if (adaylar[0].sc < -100) continue;   // bu beden için uygun hedef yok
-        const target = adaylar[0].p.store;
+        // HEDEF SEÇİMİ:
+        //   HUB modu → tüm bedenler HUB'a (talebi en güçlü kırık mağaza)
+        //   Beden modu → her beden, o bedeni en iyi satan/uygun mağazaya
+        let target, isHubMode=false;
+        if (hub) {
+          target=pdata.storePerformance[hub.sk].store;
+          isHubMode=true;
+        } else {
+          const adaylar = Object.entries(pdata.storePerformance)
+            .filter(([k,p])=>!brokenSourceKeys.has(k)&&canBeTarget(pkey,k))
+            .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
+            .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
+          if (adaylar.length===0) continue;
+          if (adaylar[0].sc < -100) continue;   // bu beden için uygun hedef yok
+          target = adaylar[0].p.store;
+        }
         if (brokenSourceKeys.has(target.key)) continue;
         rmAddTarget(pkey,target.key);
 
@@ -804,23 +880,35 @@ const ALGO = (function() {
           if (src.sk===target.key) continue;
           if (depoTaken.has(`${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${target.key}`)) continue;
 
+          // v8.6 DÜZELTME: kaynakBeden_satis artık gerçek veriden okunuyor.
+          //   Eskiden sabit 0 yazılıydı → Kriter 3 her zaman tam +15 veriyor,
+          //   güveni yapay yükseltiyordu. Doğru: kaynak o bedeni satmışsa
+          //   o bedeni göndermek daha risklidir (kaynakta da talep var).
+          const kaynakBedenSatis_=(src.sdata.sizes&&src.sdata.sizes[beden])
+            ? (src.sdata.sizes[beden].satis||0) : 0;
           const guvenK_=calculateGuvenEndeksi({
             hedefSatis:kHp?kHp.satis:0,kaynakSatis:src.sdata.totalSatis,
-            kaynakBeden_satis:0,
+            kaynakBeden_satis:kaynakBedenSatis_,
             hedefBeden_stok:kHsize?kHsize.stok:0,hedefBeden_satis:kHsize?kHsize.satis:0,
             bedenCurve:getBedenCurve(beden,target.key),
             hedefSTR:kSTR,bekledigiGun:src.days||0,esik:dayThreshold,
             isDepoTransfer:false,isKirikBeden:true,
             stokluBedenSayisi:src.stokluB.length,toplamBedenSayisi:toplamSize,
           });
-          // v8.4: Hedef bu bedeni satmışsa kanıtlı satış potansiyeli yazılır.
-          //   Hiçbir mağaza bu bedeni satmamışsa (kullanıcı onaylı kural) beden,
-          //   en güçlü/tam koleksiyonlu mağazada konsolide edilir — scoreSizeTarget
-          //   koleksiyon derinliği + rengin toplam satışına göre bunu zaten seçer.
-          const satisNot=(kHsize&&kHsize.satis>0)
-            ? ` — ${target.label} bu bedeni ${kHsize.satis} adet satmış (satış potansiyeli)`
-            : ` — bu bedende kanıtlı satış yok → en güçlü/tam koleksiyonlu mağazada konsolidasyon`;
-          const konsNot=(kaynakList.length>1)
+          // Açıklama metni — HUB modu ile beden modu farklı gerekçe yazar.
+          let satisNot;
+          if (isHubMode) {
+            const ihtiyacNot=(kHsize&&kHsize.satis>0&&(kHsize.stok||0)===0)
+              ? ` (${target.label} bu bedeni ${kHsize.satis} adet satmış, stok 0 — ÖNCELİKLİ ihtiyaç)`
+              : (kHsize&&kHsize.satis>0 ? ` (${target.label} bu bedeni satmış)` : '');
+            satisNot=` — ${target.label} bu üründe en güçlü talebe sahip kırık mağaza`
+                   + ` (toplam satış ${hubSatis}); kırık bedenler burada konsolide ediliyor${ihtiyacNot}`;
+          } else {
+            satisNot=(kHsize&&kHsize.satis>0)
+              ? ` — ${target.label} bu bedeni ${kHsize.satis} adet satmış (satış potansiyeli)`
+              : ` — bu bedende kanıtlı satış yok → en güçlü/tam koleksiyonlu mağazada konsolidasyon`;
+          }
+          const konsNot=(!isHubMode&&kaynakList.length>1)
             ? ` [${kaynakList.length} mağazadan ${target.label}'e konsolidasyon]` : '';
           result.kirikBeden.push({
             gonderen:src.sdata.meta,hedef:target,
@@ -1015,9 +1103,12 @@ const ALGO = (function() {
         const t2Hp=cands2[0].p;
         const t2Size=t2Hp.sizes?t2Hp.sizes[beden]:null;
         const t2STR=t2Hp&&(t2Hp.stok+t2Hp.satis>0)?Math.round(t2Hp.satis/(t2Hp.stok+t2Hp.satis)*100):0;
+        // v8.6: kaynakBeden_satis gerçek veriden (sabit 0 değil).
+        const kaynakBedenSatis2_=(sdata.sizes&&sdata.sizes[beden])
+          ? (sdata.sizes[beden].satis||0) : 0;
         const guvenK_=calculateGuvenEndeksi({
           hedefSatis:t2Hp.satis||0,kaynakSatis:sdata.totalSatis,
-          kaynakBeden_satis:0,
+          kaynakBeden_satis:kaynakBedenSatis2_,
           hedefBeden_stok:t2Size?t2Size.stok:0,hedefBeden_satis:t2Size?t2Size.satis:0,
           bedenCurve:getBedenCurve(beden,target2.key),
           hedefSTR:t2STR,bekledigiGun:0,esik:0,
@@ -1198,8 +1289,9 @@ const ALGO = (function() {
     calculatePerformance,calcVelocity,getCategory,getBedenCurve,
     getKirikThreshold,isKirikMuaf,
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
+    calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.4',
+    VERSION:'v8.6',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
