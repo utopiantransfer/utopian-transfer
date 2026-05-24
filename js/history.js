@@ -57,6 +57,11 @@ const HISTORY = (function() {
       })),
       // Virman ürün takibi (sonraki transferde kullanılacak)
       virmanProducts: extractVirmanProducts(analysis),
+      // v8.8 ÖNERİ 7 — TRANSFER BAŞARI GERİ BESLEMESİ:
+      //   Bu çalışmada transfer edilen her SKU (ürün+renk+beden+hedef) ve
+      //   o anki hedef stoğu saklanır. Sonraki çalışma, aynı SKU'nun stoğu
+      //   azaldıysa "transfer başarılı (ürün satıldı)" sonucunu çıkarır.
+      transferredSkus: extractTransferredSkus(analysis),
     };
     
     try {
@@ -86,6 +91,78 @@ const HISTORY = (function() {
     }
     return virmans;
   }
+
+  // ========== v8.8 ÖNERİ 7 — TRANSFER BAŞARI GERİ BESLEMESİ ==========
+
+  // Bu çalışmada transfer edilen tüm SKU'ları (hedef + adet) listele.
+  function extractTransferredSkus(analysis) {
+    const skus = [];
+    const push = (t, tur) => {
+      if (!t.hedef) return;
+      skus.push({
+        tur,
+        urunKodu: t.urunKodu, renk: t.renk, beden: String(t.beden || ''),
+        hedef: t.hedef.key || t.hedef.label,
+        hedefLabel: t.hedef.label,
+        adet: t.adet || 1,
+        guven: t.guvenEndeksi || t.confidence || 0,
+      });
+    };
+    for (const t of (analysis.depoTransfers || [])) push(t, 'Depo');
+    for (const t of (analysis.magTransfers || [])) push(t, 'Mağaza');
+    for (const t of (analysis.kirikBeden || [])) push(t, 'Kırık');
+    return skus;
+  }
+
+  // Önceki çalışmanın transfer kararlarını, GÜNCEL ham veriyle karşılaştır.
+  // Mantık: bir SKU önceki hafta X mağazasına gönderildiyse ve bu hafta o
+  // mağazadaki stoğu azaldıysa → ürün satıldı → transfer BAŞARILI.
+  // Stok aynı/arttıysa → henüz satılmadı → BEKLEMEDE / BAŞARISIZ.
+  async function measureSuccess(currentRawData) {
+    const runs = await getAll();
+    if (!runs.length) return null;
+    const sorted = runs.sort((a, b) => new Date(b.date) - new Date(a.date));
+    const lastRun = sorted.find(r => r.transferredSkus && r.transferredSkus.length);
+    if (!lastRun) return null;
+
+    // Güncel ham veriden: mağaza + ürün + renk + beden → stok
+    const norm = s => String(s || '').toUpperCase().trim();
+    const stokOf = {};
+    for (const x of currentRawData) {
+      const sk = norm(x.depoAdi);
+      const key = sk + '#' + x.urunKodu + '|' + norm(x.renkAciklamasi) + '|' + norm(x.beden);
+      stokOf[key] = (stokOf[key] || 0) + (Number(x.toplamEnvanter) || 0);
+    }
+
+    let basarili = 0, bekleyen = 0, kismiyok = 0;
+    const detay = [];
+    for (const s of lastRun.transferredSkus) {
+      // hedef mağaza adıyla eşleştirme (label bazlı yaklaşık)
+      const cand = Object.keys(stokOf).filter(k =>
+        norm(k).includes(norm(s.hedefLabel || s.hedef)) &&
+        k.includes(s.urunKodu + '|'));
+      if (!cand.length) { kismiyok++; continue; }
+      // bu beden için güncel stok
+      let guncelStok = 0, bulundu = false;
+      for (const k of cand) {
+        if (norm(k).endsWith('|' + norm(s.beden))) { guncelStok += stokOf[k]; bulundu = true; }
+      }
+      if (!bulundu) { kismiyok++; continue; }
+      if (guncelStok < s.adet) { basarili++; detay.push({ ...s, sonuc: 'SATILDI', guncelStok }); }
+      else { bekleyen++; detay.push({ ...s, sonuc: 'BEKLEMEDE', guncelStok }); }
+    }
+    const olculen = basarili + bekleyen;
+    return {
+      oncekiCalisma: lastRun.name,
+      oncekiTarih: lastRun.date,
+      toplamTransfer: lastRun.transferredSkus.length,
+      olculebilen: olculen,
+      basarili, bekleyen, eslesmeyenSku: kismiyok,
+      basariOrani: olculen > 0 ? Math.round(basarili / olculen * 100) : 0,
+      detay,
+    };
+  }
+
   
   // ========== LİSTELE ==========
   
@@ -267,6 +344,8 @@ const HISTORY = (function() {
     importJson,
     getWeekNumber,
     generateName,
+    measureSuccess,
+    extractTransferredSkus,
   };
 })();
 

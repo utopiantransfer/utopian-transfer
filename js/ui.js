@@ -6,8 +6,10 @@
 const UI = (function() {
   
   const PAGE_SIZE = 50;
-  let currentTab = 'depo';
-  let currentPage = { depo: 1, mag: 1, kirik: 1, bek: 1, hata: 1 };
+  let currentTab = 'all';
+  let currentPage = { all: 1, bek: 1, hata: 1 };
+  // Birleşik transfer satırları (depo + mağaza + kırık normalize edilmiş)
+  let allRows = [];
   
   // Görsel cache
   let imageHandles = {};
@@ -267,7 +269,7 @@ const UI = (function() {
   
   function switchTab(tab) {
     currentTab = tab;
-    const tabs = ['depo', 'mag', 'kirik', 'bek', 'hata', 'env', 'perf'];
+    const tabs = ['all', 'bek', 'hata', 'env', 'perf'];
     document.querySelectorAll('.tab').forEach((el, i) => {
       el.classList.toggle('active', tabs[i] === tab);
     });
@@ -275,9 +277,7 @@ const UI = (function() {
     const target = $(`p${tab.charAt(0).toUpperCase() + tab.slice(1)}`);
     if (target) target.classList.remove('hidden');
     
-    if (tab === 'depo') renderDepo();
-    if (tab === 'mag') renderMag();
-    if (tab === 'kirik') renderKirik();
+    if (tab === 'all') renderAll();
     if (tab === 'bek') renderBek();
     if (tab === 'hata') renderHata();
     if (tab === 'env') renderEnv();
@@ -301,7 +301,8 @@ const UI = (function() {
     $('app').classList.remove('hidden');
     $('hdStats').style.display = 'flex';
     
-    populateFilters(r);
+    buildAllRows(r);
+    populateColFilters();
     
     // Özet kartlar
     $('s1').textContent = r.stats.merkezStok.toLocaleString('tr');
@@ -323,13 +324,11 @@ const UI = (function() {
     $('hsMag').textContent = r.magTransfers.length.toLocaleString('tr');
     $('hsAdet').textContent = totalAdet.toLocaleString('tr');
     
-    $('tcDepo').textContent = r.depoTransfers.length;
-    $('tcMag').textContent = r.magTransfers.length;
-    $('tcKirik').textContent = r.kirikBeden.length;
+    if ($('tcAll')) $('tcAll').textContent = allRows.length;
     $('tcBek').textContent = r.bekleyen.length;
     $('tcHata').textContent = r.hataliTarih.length;
     
-    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.1 (Y26:7g · Virman:14g · Velocity+FWoS)`;
+    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.6 (Y26:15g · Virman:30g · Bayes)`;
     if (DATA.state && (DATA.state && DATA.state.lastAnalysisDate)) {
       $('stHistory').textContent = 'Son analiz: ' + (DATA.state && DATA.state.lastAnalysisDate).toLocaleString('tr');
     } else if (DATA.lastAnalysisDate) {
@@ -337,9 +336,7 @@ const UI = (function() {
     }
     
     updateDashboard(r);
-    renderDepo();
-    renderMag();
-    renderKirik();
+    renderAll();
     renderBek();
     renderHata();
     renderEnv();
@@ -353,7 +350,7 @@ const UI = (function() {
       <div class="dash-row"><span class="lbl">Yeni Sezon Y26</span><span class="val ok">${r.stats.yeniSezonAdet}</span></div>
       <div class="dash-row"><span class="lbl">Virman</span><span class="val">${r.stats.virmanAdet}</span></div>
       <div class="dash-row"><span class="lbl dash-total">TOPLAM TRANSFER</span><span class="val dash-total">${totalAdet}</span></div>
-      <div class="dash-row"><span class="lbl">Hatalı Tarih</span><span class="val er">${r.hataliTarih.length}</span></div>
+      <div class="dash-row"><span class="lbl">Yeni Giriş / Yolda</span><span class="val by">${r.hataliTarih.length}</span></div>
     `;
     
     let storesHtml = '';
@@ -375,114 +372,157 @@ const UI = (function() {
     if (typeof HISTORY !== 'undefined') HISTORY.renderDashboardList();
   }
   
-  // ========== FİLTRELER ==========
+  // ========== BİRLEŞİK TRANSFER SATIRLARI ==========
+  // Depo + Mağaza Arası + Kırık Beden → tek normalize satır listesi.
   
-  function populateFilters(r) {
-    // Alt Grup
-    const altGruplar = [...new Set([
-      ...r.depoTransfers.map(t => t.altGrup),
-      ...r.magTransfers.map(t => t.altGrup),
-    ].filter(Boolean))].sort();
-    const fA = $('fAltGrup');
-    fA.innerHTML = '<option value="">Tümü</option>';
-    altGruplar.forEach(g => {
-      const opt = document.createElement('option');
-      opt.value = g; opt.textContent = g;
-      fA.appendChild(opt);
-    });
+  function buildAllRows(r) {
+    allRows = [];
     
-    // Hedef
-    const fH = $('fHedef');
-    fH.innerHTML = '<option value="">Tümü</option>';
-    ALGO.STORES.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.key; opt.textContent = s.label;
-      fH.appendChild(opt);
-    });
-    
-    // Gönderen
-    const fG = $('fGonderen');
-    fG.innerHTML = '<option value="">Tümü</option><option value="MERKEZ">Merkez Depo</option>';
-    ALGO.STORES.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s.key; opt.textContent = s.label;
-      fG.appendChild(opt);
+    // 1) DEPO TRANSFER
+    for (const t of (r.depoTransfers || [])) {
+      const hedefStore = t.distrib && t.distrib[0] ? t.distrib[0].store : t.hedef;
+      allRows.push({
+        tur: 'Depo',
+        gonderen: t.gonderici ? t.gonderici.label : 'Merkez Depo',
+        gonderenRank: 0,
+        sezonTipi: t.sezonTipi, sezonDurum: t.sezonDurum || '',
+        anaGrup: t.anaGrup || '-', altGrup: t.altGrup || '-',
+        urunAdi: t.urunAdi || '', urunKodu: t.urunKodu || '',
+        renk: t.renk || '', beden: String(t.beden || ''),
+        takimDurumu: t.takimDurumu,
+        guven: t.guvenEndeksi || t.confidence || 0,
+        neden: t.neden || '', adet: t.adet || 0,
+        hedef: hedefStore ? hedefStore.label : '-',
+        hedefRank: hedefStore ? hedefStore.rank : 0,
+        kategori: t.kategori,
+      });
+    }
+    // 2) MAĞAZA ARASI
+    for (const t of (r.magTransfers || [])) {
+      allRows.push({
+        tur: 'Mağaza',
+        gonderen: t.gonderen ? t.gonderen.label : '-',
+        gonderenRank: t.gonderen ? t.gonderen.rank : 0,
+        sezonTipi: t.sezonTipi, sezonDurum: t.sezonDurum || '',
+        anaGrup: t.anaGrup || '-', altGrup: t.altGrup || '-',
+        urunAdi: t.urunAdi || '', urunKodu: t.urunKodu || '',
+        renk: t.renk || '', beden: String(t.beden || ''),
+        takimDurumu: t.takimDurumu,
+        guven: t.guvenEndeksi || t.confidence || 0,
+        neden: t.neden || '', adet: t.adet || 0,
+        hedef: t.hedef ? t.hedef.label : '-',
+        hedefRank: t.hedef ? t.hedef.rank : 0,
+        kategori: t.kategori,
+      });
+    }
+    // 3) KIRIK BEDEN (v8.8: FAZLA STOK ayrı tür olarak gösterilir)
+    for (const k of (r.kirikBeden || [])) {
+      const tur = k.transferTipi === 'FAZLA_STOK' ? 'Fazla Stok' : 'Kırık';
+      allRows.push({
+        tur,
+        gonderen: k.gonderen ? k.gonderen.label : '-',
+        gonderenRank: k.gonderen ? (k.gonderen.rank || 0) : 0,
+        sezonTipi: k.sezonTipi, sezonDurum: k.sezonDurum || '',
+        anaGrup: k.anaGrup || '-', altGrup: k.altGrup || '-',
+        urunAdi: k.urunAdi || '', urunKodu: k.urunKodu || '',
+        renk: k.renk || '', beden: String(k.beden || ''),
+        takimDurumu: k.takimDurumu,
+        guven: k.guvenEndeksi || k.confidence || 0,
+        neden: (k.ikinciTur ? '🔄 İkinci-Tur · ' : (k.postTransfer ? '⚡ Transfer Sonrası · ' : '')) + (k.neden || ''),
+        adet: k.adet || 0,
+        hedef: k.hedef ? k.hedef.label : '-',
+        hedefRank: k.hedef ? k.hedef.rank : 0,
+        kategori: k.kategori,
+      });
+    }
+  }
+  
+  // ========== SÜTUN FİLTRELERİ ==========
+  
+  function fillSelect(sel, values) {
+    const cur = sel.value;
+    sel.innerHTML = '<option value="">Tümü</option>';
+    [...new Set(values.filter(v => v !== undefined && v !== null && v !== ''))]
+      .sort((a, b) => String(a).localeCompare(String(b), 'tr'))
+      .forEach(v => {
+        const o = document.createElement('option');
+        o.value = v; o.textContent = v;
+        sel.appendChild(o);
+      });
+    if ([...sel.options].some(o => o.value === cur)) sel.value = cur;
+  }
+  
+  function populateColFilters() {
+    document.querySelectorAll('.cf').forEach(el => {
+      if (el.tagName !== 'SELECT') return;
+      const col = el.getAttribute('data-col');
+      if (col === 'guven') return; // sabit aralık seçenekleri
+      if (col === 'takim') { fillSelect(el, ['Takım', 'Tek']); return; }
+      if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Fazla Stok']); return; }
+      if (col === 'sezon') { fillSelect(el, ['YENI', 'VIRMAN']); return; }
+      fillSelect(el, allRows.map(row => {
+        if (col === 'takim') return row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
+        return row[col];
+      }));
     });
   }
   
-  function getFilters() {
-    return {
-      sezon: ($('fSezon') && $('fSezon').value) || '',
-      kategori: ($('fKategori') && $('fKategori').value) || '',
-      altGrup: ($('fAltGrup') && $('fAltGrup').value) || '',
-      takim: ($('fTakim') && $('fTakim').value) || '',
-      hedef: ($('fHedef') && $('fHedef').value) || '',
-      gonderen: ($('fGonderen') && $('fGonderen').value) || '',
-      search: (($('fSearch') && $('fSearch').value) || '').toLowerCase().trim(),
-    };
+  function getColFilters() {
+    const f = {};
+    document.querySelectorAll('.cf').forEach(el => {
+      const col = el.getAttribute('data-col');
+      const v = (el.value || '').trim();
+      if (v) f[col] = el.tagName === 'SELECT' ? v : v.toLowerCase();
+    });
+    const s = (($('fSearch') && $('fSearch').value) || '').toLowerCase().trim();
+    if (s) f._search = s;
+    return f;
   }
   
-  function applyFilters() {
-    currentPage.depo = 1;
-    currentPage.mag = 1;
-    renderDepo();
-    renderMag();
-    if (DATA.lastAnalysis) updateDashboard(DATA.lastAnalysis);
+  function getFilteredAll() {
+    const f = getColFilters();
+    return allRows.filter(row => {
+      if (f.tur && row.tur !== f.tur) return false;
+      if (f.gonderen && row.gonderen !== f.gonderen) return false;
+      if (f.sezon && row.sezonTipi !== f.sezon) return false;
+      if (f.sezonDurum && row.sezonDurum !== f.sezonDurum) return false;
+      if (f.anaGrup && row.anaGrup !== f.anaGrup) return false;
+      if (f.altGrup && row.altGrup !== f.altGrup) return false;
+      if (f.renk && row.renk !== f.renk) return false;
+      if (f.beden && row.beden !== f.beden) return false;
+      if (f.hedef && row.hedef !== f.hedef) return false;
+      if (f.takim) {
+        const t = row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
+        if (t !== f.takim) return false;
+      }
+      if (f.guven) {
+        const g = row.guven || 0;
+        if (f.guven === '90' && g < 90) return false;
+        if (f.guven === '75' && (g < 75 || g >= 90)) return false;
+        if (f.guven === '0' && g >= 75) return false;
+      }
+      if (f.urunAdi && !(row.urunAdi || '').toLowerCase().includes(f.urunAdi)) return false;
+      if (f.urunKodu && !(row.urunKodu || '').toLowerCase().includes(f.urunKodu)) return false;
+      if (f.neden && !(row.neden || '').toLowerCase().includes(f.neden)) return false;
+      if (f._search && !(row.urunAdi || '').toLowerCase().includes(f._search)
+          && !(row.urunKodu || '').toLowerCase().includes(f._search)) return false;
+      return true;
+    });
+  }
+  
+  function applyColFilters() {
+    currentPage.all = 1;
+    renderAll();
   }
   
   function resetFilters() {
-    ['fSezon', 'fKategori', 'fAltGrup', 'fTakim', 'fHedef', 'fGonderen', 'fSearch'].forEach(id => {
-      $(id).value = '';
-    });
-    applyFilters();
+    document.querySelectorAll('.cf').forEach(el => { el.value = ''; });
+    if ($('fSearch')) $('fSearch').value = '';
+    applyColFilters();
   }
   
-  // GIYIM kategori = Tekstil + Dış Giyim (birleşik)
-  function matchKategori(filterValue, itemKategoriCode) {
-    if (!filterValue) return true;
-    if (filterValue === 'GIYIM') {
-      return itemKategoriCode === 'TEKSTİL' || itemKategoriCode === 'DIŞ GİYİM';
-    }
-    return itemKategoriCode === filterValue;
-  }
-  
-  function getFilteredDepo() {
-    if (!DATA.lastAnalysis) return [];
-    const f = getFilters();
-    return DATA.lastAnalysis.depoTransfers.filter(t => {
-      if (f.sezon && t.sezonTipi !== f.sezon) return false;
-      if (f.kategori && !matchKategori(f.kategori, t.kategori?.code)) return false;
-      if (f.altGrup && t.altGrup !== f.altGrup) return false;
-      if (f.takim) {
-        const isT = t.takimDurumu === 'TAKIM';
-        if (f.takim === 'TAKIM' && !isT) return false;
-        if (f.takim === 'DEGIL' && isT) return false;
-      }
-      if (f.hedef && !t.distrib.some(d => d.store.key === f.hedef)) return false;
-      if (f.gonderen && f.gonderen !== 'MERKEZ') return false;
-      if (f.search && !(t.urunAdi || '').toLowerCase().includes(f.search) && !(t.urunKodu || '').toLowerCase().includes(f.search)) return false;
-      return true;
-    });
-  }
-  
-  function getFilteredMag() {
-    if (!DATA.lastAnalysis) return [];
-    const f = getFilters();
-    return DATA.lastAnalysis.magTransfers.filter(t => {
-      if (f.sezon && t.sezonTipi !== f.sezon) return false;
-      if (f.kategori && !matchKategori(f.kategori, t.kategori?.code)) return false;
-      if (f.altGrup && t.altGrup !== f.altGrup) return false;
-      if (f.takim) {
-        const isT = t.takimDurumu === 'TAKIM';
-        if (f.takim === 'TAKIM' && !isT) return false;
-        if (f.takim === 'DEGIL' && isT) return false;
-      }
-      if (f.hedef && t.hedef.key !== f.hedef) return false;
-      if (f.gonderen && f.gonderen !== 'MERKEZ' && t.gonderen.key !== f.gonderen) return false;
-      if (f.search && !(t.urunAdi || '').toLowerCase().includes(f.search) && !(t.urunKodu || '').toLowerCase().includes(f.search)) return false;
-      return true;
-    });
-  }
+  // Geriye dönük uyumluluk (init.js / başka yerden çağrılırsa)
+  function applyFilters() { applyColFilters(); }
   
   // ========== RENDER YARDIMCI ==========
   
@@ -517,165 +557,62 @@ const UI = (function() {
     try { return d.toLocaleDateString('tr'); } catch (e) { return ''; }
   }
   
-  // ========== RENDER: DEPO TRANSFER ==========
+  // ========== RENDER: TÜM TRANSFERLER (BİRLEŞİK) ==========
   
-  function renderDepo() {
-    const filtered = getFilteredDepo();
-    $('tcDepo').textContent = filtered.length;
-    
-    const page = currentPage.depo;
-    const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-    const tb = $('tbDepo');
-    tb.innerHTML = '';
-    
-    if (!slice.length) {
-      tb.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
-      renderPagination('depo', filtered.length);
-      return;
-    }
-    
-    for (const t of slice) {
-      // Mağaza durumu satırı
-      const sH = t.storeStatus.map(s => {
-        const stColor = s.stok > 0 ? '#d1fae5' : '#fee2e2';
-        const brColor = s.stok > 0 ? '#6ee7b7' : '#fca5a5';
-        return `<span title="${s.store.label} | Stok:${s.stok} Satış:${s.satis} Perf:%${Math.round(s.totalPerf*100)}" 
-          style="display:inline-flex;align-items:center;gap:1px;font-family:var(--fm);font-size:7px;padding:0 3px;border-radius:2px;background:${stColor};border:1px solid ${brColor};margin:1px">
-          <span class="rd r${s.store.rank}" style="width:3px;height:3px"></span>${s.stok > 0 ? s.stok : '✗'}${s.satis > 0 ? `<sub>${s.satis}↑</sub>` : ''}
-        </span>`;
-      }).join('');
-      
-      // Transfer önerisi
-      const dH = t.distrib.map(d => `<span class="chip">
-        <span class="rd r${d.store.rank}" style="width:3px;height:3px"></span>
-        ${d.qty}ad. ${d.store.label} <small>(%${Math.round(d.performance * 100)})</small>
-      </span>`).join(' ');
-      
-      const score = t.distrib[0] ? Math.round(t.distrib[0].performance * 100) : 0;
-      const scoreCls = score >= 70 ? 'perf-good' : score >= 40 ? 'perf-mid' : 'perf-bad';
-      const gondericiLabel = t.gonderici ? t.gonderici.label : 'Merkez Depo';
-      
-      const conf = t.guvenEndeksi || t.confidence || t.velocityScore || score;
-      const confCls = conf >= 90 ? 'perf-good' : conf >= 75 ? 'perf-mid' : 'perf-bad';
-      const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
-      const hedefStore = t.distrib[0] ? t.distrib[0].store : null;
-      const hedefLabel = hedefStore ? hedefStore.label : '-';
-      const hedefRank = hedefStore ? hedefStore.rank : 1;
-      
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px">📦 ${gondericiLabel}</td>
-        <td>${sezonBadge(t.sezonTipi)}</td>
-        <td><span class="badge ${t.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${t.sezonDurum || ''}</span></td>
-        <td><span class="badge bb" style="font-size:7px">${t.anaGrup || '-'}</span></td>
-        <td><span class="badge bm" style="font-size:7px">${t.altGrup || '-'}</span></td>
-        <td style="font-weight:600">${t.urunAdi}</td>
-        <td>${productLink(t.urunKodu)}</td>
-        <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.renk}</td>
-        <td style="font-family:var(--fm);font-weight:700">${t.beden}</td>
-        <td style="font-family:var(--fm);color:var(--ok);font-weight:700">${t.depoStok}</td>
-        <td>${takimBadge(t.takimDurumu)}</td>
-        <td>${sH}</td>
-        <td><span class="perf-num ${confCls}" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
-        <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
-        <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${t.adet}</td>
-        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${hedefRank}" style="display:inline-block;margin-right:4px"></span>${hedefLabel}</td>
-      `;
-      tb.appendChild(tr);
-    }
-    
-    renderPagination('depo', filtered.length);
+  function turBadge(tur) {
+    const map = {
+      'Depo':       { bg:'#EDE9FE', col:'#5B21B6', br:'#C4B5FD', ic:'📦' },
+      'Mağaza':     { bg:'#DBEAFE', col:'#1E40AF', br:'#93C5FD', ic:'🔄' },
+      'Kırık':      { bg:'#FEE2E2', col:'#991B1B', br:'#FCA5A5', ic:'⚠️' },
+      'Fazla Stok': { bg:'#FEF3C7', col:'#92400E', br:'#FCD34D', ic:'📊' },
+    };
+    const m = map[tur] || map['Depo'];
+    return `<span style="display:inline-flex;align-items:center;gap:3px;background:${m.bg};color:${m.col};border:1px solid ${m.br};padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;white-space:nowrap">${m.ic} ${tur}</span>`;
   }
   
-  // ========== RENDER: MAĞAZA ARASI ==========
-  
-  function renderMag() {
-    const filtered = getFilteredMag();
-    $('tcMag').textContent = filtered.length;
-    
-    const page = currentPage.mag;
-    const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-    const tb = $('tbMag');
-    tb.innerHTML = '';
-    
-    if (!slice.length) {
-      tb.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
-      renderPagination('mag', filtered.length);
-      return;
-    }
-    
-    for (const t of slice) {
-      const conf = t.guvenEndeksi || t.confidence || t.velocityScore || 0;
-      const confCls = conf >= 90 ? 'perf-good' : conf >= 75 ? 'perf-mid' : 'perf-bad';
-      const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${t.gonderen.rank}" style="display:inline-block;margin-right:4px"></span>${t.gonderen.label}</td>
-        <td>${sezonBadge(t.sezonTipi)}</td>
-        <td><span class="badge ${t.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${t.sezonDurum || ''}</span></td>
-        <td><span class="badge bb" style="font-size:7px">${t.anaGrup || '-'}</span></td>
-        <td><span class="badge bm" style="font-size:7px">${t.altGrup || '-'}</span></td>
-        <td style="font-weight:600">${t.urunAdi}</td>
-        <td>${productLink(t.urunKodu)}</td>
-        <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${t.renk}</td>
-        <td style="font-family:var(--fm);font-weight:700">${t.beden}</td>
-        <td style="font-size:8px">${formatDate(t.giris)}</td>
-        <td>${takimBadge(t.takimDurumu)}</td>
-        <td><span class="perf-num ${confCls}" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
-        <td style="font-size:8px;color:var(--mt);font-style:italic">${t.neden}</td>
-        <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${t.adet}</td>
-        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${t.hedef.rank}" style="display:inline-block;margin-right:4px"></span>${t.hedef.label}</td>
-      `;
-      tb.appendChild(tr);
-    }
-    
-    renderPagination('mag', filtered.length);
-  }
-  
-  // ========== RENDER: KIRIK BEDEN ==========
-  
-  function renderKirik() {
+  function renderAll() {
     if (!DATA.lastAnalysis) return;
-    const data = DATA.lastAnalysis.kirikBeden;
-    const page = currentPage.kirik;
-    const slice = data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-    const tb = $('tbKirik');
+    const filtered = getFilteredAll();
+    if ($('tcAll')) $('tcAll').textContent = filtered.length;
+    
+    const page = currentPage.all;
+    const slice = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+    const tb = $('tbAll');
     tb.innerHTML = '';
     
     if (!slice.length) {
-      tb.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mt)">Kırık beden yok ✓</td></tr>';
-      renderPagination('kirik', data.length);
+      tb.innerHTML = '<tr><td colspan="15" style="text-align:center;padding:20px;color:var(--mt)">Sonuç yok</td></tr>';
+      renderPagination('all', filtered.length);
       return;
     }
     
-    for (const k of slice) {
-      const conf = k.guvenEndeksi || k.confidence || 0;
+    for (const row of slice) {
+      const conf = row.guven || 0;
       const confColor = conf >= 90 ? '#059669' : conf >= 75 ? '#D97706' : '#DC2626';
-      const sizeRatio = `${k.stokluBedenler||1}/${k.toplamSize || '?'}`;
-      
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${k.gonderen.rank||0}" style="display:inline-block;margin-right:4px"></span>${k.gonderen.label}</td>
-        <td>${sezonBadge(k.sezonTipi)}</td>
-        <td><span class="badge ${k.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${k.sezonDurum || ''}</span></td>
-        <td><span class="badge bb" style="font-size:7px">${k.anaGrup || '-'}</span></td>
-        <td><span class="badge bm">${k.altGrup || '-'}</span></td>
-        <td style="font-weight:600">${k.urunAdi}</td>
-        <td>${productLink(k.urunKodu)}</td>
-        <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${k.renk}</td>
-        <td style="font-family:var(--fm);font-weight:700;color:var(--er)">${k.beden}</td>
-        <td><span class="badge br">${k.adet}</span></td>
-        <td style="font-family:var(--fm);font-size:9px;color:var(--er);font-weight:600">${sizeRatio}</td>
-        <td>${takimBadge(k.takimDurumu)}</td>
-        <td><span style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
-        <td style="font-size:8px;color:var(--mt);font-style:italic">${k.postTransfer ? '<span style="color:#F59E0B;font-weight:700">⚡ Transfer Sonrası · </span>' : ''}${k.neden}</td>
-        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${k.hedef.rank}" style="display:inline-block;margin-right:4px"></span>${k.hedef.label}</td>
+        <td>${turBadge(row.tur)}</td>
+        <td style="background:#FEF3C7;border-left:3px solid #B8864F;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px"><span class="rd r${row.gonderenRank}" style="display:inline-block;margin-right:4px"></span>${row.gonderen}</td>
+        <td>${sezonBadge(row.sezonTipi)}</td>
+        <td><span class="badge ${row.sezonTipi === 'YENI' ? 'bg' : 'bv'}" style="font-size:7px">${row.sezonDurum || ''}</span></td>
+        <td><span class="badge bb" style="font-size:7px">${row.anaGrup || '-'}</span></td>
+        <td><span class="badge bm" style="font-size:7px">${row.altGrup || '-'}</span></td>
+        <td style="font-weight:600">${row.urunAdi}</td>
+        <td>${productLink(row.urunKodu)}</td>
+        <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${row.renk}</td>
+        <td style="font-family:var(--fm);font-weight:700${row.tur === 'Kırık' ? ';color:var(--er)' : ''}">${row.beden}</td>
+        <td>${takimBadge(row.takimDurumu)}</td>
+        <td><span class="perf-num" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
+        <td style="font-size:8px;color:var(--mt);font-style:italic">${row.neden}</td>
+        <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${row.adet}</td>
+        <td style="background:#D1FAE5;border-right:3px solid #059669;padding:4px 8px;font-weight:800;font-size:11px;color:#1F2937;text-transform:uppercase;letter-spacing:0.5px;text-align:right"><span class="rd r${row.hedefRank}" style="display:inline-block;margin-right:4px"></span>${row.hedef}</td>
       `;
       tb.appendChild(tr);
     }
     
-    renderPagination('kirik', data.length);
+    renderPagination('all', filtered.length);
   }
+
   
   // ========== RENDER: BEKLEYEN ==========
   
@@ -717,30 +654,33 @@ const UI = (function() {
   
   function renderHata() {
     if (!DATA.lastAnalysis) return;
-    const data = DATA.lastAnalysis.hataliTarih;
+    const data = DATA.lastAnalysis.yolda || DATA.lastAnalysis.hataliTarih || [];
     const page = currentPage.hata;
     const slice = data.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
     const tb = $('tbHata');
     tb.innerHTML = '';
     
     if (!slice.length) {
-      tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--mt)">Hatalı tarih yok ✓</td></tr>';
+      tb.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:20px;color:var(--mt)">Yolda/yeni giriş ürün yok ✓</td></tr>';
       renderPagination('hata', data.length);
       return;
     }
     
     for (const h of slice) {
+      const tarihStr = h.magazaGiris
+        ? new Date(h.magazaGiris).toLocaleDateString('tr')
+        : (h.tarih || '1.1.1900');
       const tr = document.createElement('tr');
       tr.innerHTML = `
-        <td>${h.depo}</td>
-        <td style="font-weight:600">${h.urunAdi}</td>
+        <td style="font-weight:600">${(h.store && h.store.label) || h.depo || '-'}</td>
+        <td style="font-weight:600">${h.urunAdi || ''}</td>
         <td>${productLink(h.urunKodu)}</td>
-        <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${h.renk}</td>
-        <td style="font-family:var(--fm);font-weight:700">${h.beden}</td>
-        <td style="color:var(--er);font-weight:600">${h.tarih}</td>
-        <td style="text-align:center">${h.stok}</td>
-        <td style="text-align:center;color:var(--ac)">${h.satis}</td>
-        <td style="font-size:9px;color:var(--mt)">${h.sebep}</td>
+        <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${h.renk || ''}</td>
+        <td style="font-family:var(--fm);font-weight:700">${h.beden || ''}</td>
+        <td style="color:var(--warn);font-weight:600">${tarihStr}</td>
+        <td style="text-align:center">${h.stok || 0}</td>
+        <td style="text-align:center;color:var(--ac)">${h.satis || 0}</td>
+        <td style="font-size:9px;color:var(--mt)">🚚 Yolda — mağaza henüz teslim almadı</td>
       `;
       tb.appendChild(tr);
     }
@@ -809,9 +749,7 @@ const UI = (function() {
   
   function gotoPage(tab, page) {
     currentPage[tab] = page;
-    if (tab === 'depo') renderDepo();
-    if (tab === 'mag') renderMag();
-    if (tab === 'kirik') renderKirik();
+    if (tab === 'all') renderAll();
     if (tab === 'bek') renderBek();
     if (tab === 'hata') renderHata();
   }
@@ -829,15 +767,11 @@ const UI = (function() {
     showLoading,
     hideLoading,
     showResults,
-    populateFilters,
-    getFilters,
+    applyColFilters,
     applyFilters,
     resetFilters,
-    getFilteredDepo,
-    getFilteredMag,
-    renderDepo,
-    renderMag,
-    renderKirik,
+    getVisibleRows: getFilteredAll,
+    renderAll,
     renderBek,
     renderHata,
     renderEnv,

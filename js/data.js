@@ -322,8 +322,34 @@ const DATA = (function() {
         String(x.urunAdi || '').localeCompare(String(y.urunAdi || ''), 'tr'));
     }
     
-    // ===== SAYFA 1: DEPO TRANSFER =====
-    const depoData = UI.getFilteredDepo ? UI.getFilteredDepo() : a.depoTransfers;
+    // ===== SAYFA 1: KONTROL LİSTESİ (Depo + Mağaza + Kırık birleşik, filtreli) =====
+    const allRows = (UI.getVisibleRows ? UI.getVisibleRows() : []);
+    if (allRows.length) {
+      const d0 = allRows.slice().sort((x, y) =>
+        String(x.urunAdi || '').localeCompare(String(y.urunAdi || ''), 'tr')).map(row => ({
+        'Tür': row.tur,
+        'GÖNDERİCİ': String(row.gonderen || '').toUpperCase(),
+        'Sezon': row.sezonTipi,
+        'Sezon Durum': row.sezonDurum || '',
+        'Ana Grup': row.anaGrup || '',
+        'Alt Grup': row.altGrup || '',
+        'Ürün Adı': row.urunAdi,
+        'Ürün Kodu': row.urunKodu,
+        'Renk': row.renk,
+        'Beden': row.beden,
+        'Takım': row.takimDurumu || '',
+        'Güven %': row.guven || '',
+        'Neden': row.neden,
+        'Adet': row.adet,
+        'HEDEF MAĞAZA': String(row.hedef || '').toUpperCase(),
+      }));
+      const ws0 = XLSX.utils.json_to_sheet(d0);
+      setColWidths(ws0, [9, 18, 8, 12, 14, 16, 24, 22, 14, 8, 8, 9, 44, 7, 18]);
+      XLSX.utils.book_append_sheet(wb, ws0, 'Kontrol Listesi');
+    }
+    
+    // ===== SAYFA 2: DEPO TRANSFER (detay) =====
+    const depoData = a.depoTransfers;
     const d1 = sortByName(depoData).map(t => ({
       'GÖNDERİCİ DEPO': t.gonderici ? t.gonderici.label.toUpperCase() : 'MERKEZ DEPO',
       'Sezon': t.sezonTipi,
@@ -345,8 +371,8 @@ const DATA = (function() {
     setColWidths(ws1, [18, 8, 12, 14, 16, 24, 22, 14, 8, 8, 12, 9, 40, 18]);
     XLSX.utils.book_append_sheet(wb, ws1, 'Depo Transfer');
     
-    // ===== SAYFA 2: MAĞAZA ARASI (genel liste) =====
-    const magData = UI.getFilteredMag ? UI.getFilteredMag() : a.magTransfers;
+    // ===== SAYFA 3: MAĞAZA ARASI (detay) =====
+    const magData = a.magTransfers;
     const d2 = sortByName(magData).map(t => ({
       'GÖNDERİCİ MAĞAZA': t.gonderen.label.toUpperCase(),
       'Sezon': t.sezonTipi,
@@ -368,7 +394,7 @@ const DATA = (function() {
     setColWidths(ws2, [18, 8, 12, 14, 16, 24, 22, 14, 8, 6, 6, 12, 9, 40, 18]);
     XLSX.utils.book_append_sheet(wb, ws2, 'Mağaza Arası');
     
-    // ===== SAYFA 3: KIRIK BEDEN (genel liste) =====
+    // ===== SAYFA 4: KIRIK BEDEN (detay) =====
     if (a.kirikBeden.length) {
       const d3 = sortByName(a.kirikBeden).map(t => ({
         'GÖNDERİCİ MAĞAZA': t.gonderen.label.toUpperCase(),
@@ -392,18 +418,24 @@ const DATA = (function() {
       XLSX.utils.book_append_sheet(wb, ws3, 'Kırık Beden');
     }
     
-    // ===== SAYFA 4: HATALI TARİH =====
-    if (a.hataliTarih.length) {
-      const dH = sortByName(a.hataliTarih).map(h => ({
+    // ===== SAYFA: YENİ GİRİŞ / YOLDA =====
+    // MagazayaGirisTarihi = 1.1.1900 → ürün yolda/nakilde, transfere alınmadı.
+    const yoldaListe = a.yolda || a.hataliTarih || [];
+    if (yoldaListe.length) {
+      const dH = sortByName(yoldaListe).map(h => ({
         'Mağaza': h.store ? h.store.label : '',
         'Ürün Adı': h.urunAdi,
         'Ürün Kodu': h.urunKodu,
         'Renk': h.renk,
         'Beden': h.beden,
+        'Mağaza Giriş Tarihi': h.magazaGiris ? new Date(h.magazaGiris).toLocaleDateString('tr') : '1.1.1900',
         'Stok': h.stok,
-        'Neden': h.neden,
+        'Satış': h.satis || 0,
+        'Durum': 'YOLDA — mağaza henüz fiziksel teslim almadı',
       }));
-      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(dH), 'Hatalı Tarih');
+      const wsY = XLSX.utils.json_to_sheet(dH);
+      setColWidths(wsY, [18, 24, 22, 14, 8, 18, 7, 7, 42]);
+      XLSX.utils.book_append_sheet(wb, wsY, 'Yeni Giriş - Yolda');
     }
     
     // ===== SAYFA 5: DEPODA BEKLEYEN ÜRÜN =====
