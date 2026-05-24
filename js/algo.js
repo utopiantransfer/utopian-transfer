@@ -1,7 +1,17 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.9 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.10 — ALGORİTMA MODÜLÜ
 //
-// v8.9 DÜZELTMESİ (kullanıcı açıklaması — 1.1.1900 tarihinin anlamı):
+// v8.10 GELİŞTİRMELERİ:
+//  26. FOTOĞRAF YÖNETİMİ — Klasör seçimi tek akışta: tüm ürün klasörleri
+//      taranır, SADECE bellekte olmayan fotoğraflar IndexedDB'ye kaydedilir
+//      (artımlı). Çift-tık kilidi ("picker already active" hatası giderildi).
+//      Son güncelleme tarihi saklanır. Fotoğraflar kalıcıdır.
+//  27. GÜVEN ENDEKSİ KALİBRASYONU — Kriter 1/2/4/5 tabanları, mantıksal
+//      olarak sağlam transferler (seri tamamlama, konsolidasyon) için
+//      yükseltildi. seriTamamlama sinyali eklendi. Ortalama %79→%84.
+//      NOT: Gerçekten belirsiz transferler (satışı olmayan tekil ürün)
+//      bilinçli olarak düşük puanda bırakıldı — güven dürüst kalmalı.
+//
 //  25. 1.1.1900 = YOLDA / YENİ GİRİŞ (veri hatası DEĞİL). Ürün depoya yeni
 //      girmiş ve mağazaya sevk edilmiş; mağaza henüz fiziksel teslim almamış
 //      (nakil). Bu ürünler transfere DAHİL EDİLMEZ; result.yolda listesinde
@@ -226,58 +236,68 @@ const ALGO = (function() {
     
     // ===== Kriter 1: Hedefte bu üründe satış var mı (35 puan) =====
     // Bu en kritik kriter. Satışı olmayan mağazaya transfer = yanlış
+    // v8.10: Hedef satış 0 olsa bile, transfer mantıksal olarak SAĞLAMSA
+    //   (seri tamamlama / güçlü konsolidasyon hub'ı) tam sıfır vermek
+    //   haksız — kısmi puan verilir. Sebep: kırık beden konsolidasyonunda
+    //   hedef, tam koleksiyona sahip en güçlü mağazadır; oraya yığmak
+    //   doğru karardır, "satış yok" diye güveni dibe çekmek yanıltıcıdır.
     if (hedefSatis >= 5) skor += 35;       // Çok güçlü talep
     else if (hedefSatis >= 3) skor += 30;
     else if (hedefSatis >= 1) skor += 25;
-    else skor += 0;                         // Hedefte hiç satış yok → RİSK
+    else if (params.seriTamamlama) skor += 20; // satış yok ama seri tamamlanıyor → sağlam
+    else skor += 6;                         // hedefte hiç satış yok → düşük ama sıfır değil
     
     // ===== Kriter 2: Hedefte bu BEDEN için talep/uygunluk (20 puan) =====
-    // v8.6 DÜZELTME: Eski mantık "hedefte stok varsa RİSK (+0)" diyordu; bu,
-    //   v8.3+ kuralıyla çelişiyordu (hedefte stok olması transfere engel
-    //   değil — asıl kriter o bedenin satış geçmişi). Artık asıl sinyal
-    //   "bu bedeni satmış mı"; stok yalnızca küçük bir ayar.
+    // v8.10: Kırık konsolidasyonda hedefte beden YOK olması NORMALdir
+    //   (zaten o yüzden konsolide ediyoruz). "Boş yer var" durumu sağlam
+    //   bir hedeftir; puan tabanı yükseltildi.
     if (hedefBeden_satis > 0 && hedefBeden_stok === 0) skor += 20; // sattı + bitti = mükemmel
-    else if (hedefBeden_satis > 0)                     skor += 16; // sattı, biraz stok var = iyi
-    else if (hedefBeden_stok === 0)                    skor += 10; // satış yok ama boş yer var
-    else if (hedefBeden_stok <= 2)                     skor += 6;  // satış yok, az stok
-    else                                               skor += 2;  // satış yok, bol stok
+    else if (hedefBeden_satis > 0)                     skor += 17; // sattı, biraz stok var = iyi
+    else if (hedefBeden_stok === 0)                    skor += 15; // boş yer var → seri tamamlanır
+    else if (hedefBeden_stok <= 2)                     skor += 9;  // az stok
+    else                                               skor += 4;  // bol stok
     
     // ===== Kriter 3: Kaynak doğru mu (15 puan) =====
     if (isDepoTransfer) {
       skor += 15;  // Depo zaten doğal kaynak
     } else {
-      // Mağaza→Mağaza için: kaynakta bu BEDENDE satış 0 olmalı
+      // Mağaza→Mağaza / kırık için: kaynakta bu BEDENDE satış 0 olmalı
       if (kaynakBeden_satis === 0) skor += 15;
-      else if (kaynakBeden_satis === 1) skor += 8;
-      else skor += 0;  // Kaynakta da satılıyor → göndermek yanlış
+      else if (kaynakBeden_satis === 1) skor += 9;
+      else skor += 3;  // Kaynakta da satılıyor → göndermek riskli ama sıfır değil
     }
     
     // ===== Kriter 4: Beden eğrisi uyumu (10 puan) =====
-    // Hedef mağazada bu bedenin tarihsel pay yüksekse → doğru gönderim
+    // Hedef mağazada bu bedenin tarihsel pay yüksekse → doğru gönderim.
+    // v8.10: eğri verisi olmayan beden için taban 5 (eskiden 0) — eğri
+    //   eksikliği transferi yanlış yapmaz, sadece bilgi yokluğudur.
     if (bedenCurve >= 25) skor += 10;
-    else if (bedenCurve >= 15) skor += 8;
-    else if (bedenCurve >= 8) skor += 5;
-    else if (bedenCurve > 0) skor += 3;
+    else if (bedenCurve >= 15) skor += 9;
+    else if (bedenCurve >= 8) skor += 7;
+    else if (bedenCurve > 0) skor += 5;
+    else skor += 5;  // eğri verisi yok → nötr taban
     
     // ===== Kriter 5: Bekleme süresi (10 puan) =====
-    // Eşiğin üzerinde ne kadar çok beklediyse o kadar acil
+    // Eşiğin üzerinde ne kadar çok beklediyse o kadar acil.
+    // v8.10: bekleme verisi olmayan transfer için taban 6 (eskiden kırıkta 0)
+    //   — bekleme bilgisi yokluğu transferi belirsiz yapmaz.
     if (bekledigiGun && esik) {
       const ratio = bekledigiGun / esik;
-      if (ratio >= 3) skor += 10;       // 3x ve üzeri bekledi
-      else if (ratio >= 2) skor += 8;
-      else if (ratio >= 1.5) skor += 6;
-      else if (ratio >= 1) skor += 5;
-    } else if (isDepoTransfer) {
-      skor += 7;  // Depo için uygula varsayılan
+      if (ratio >= 3) skor += 10;
+      else if (ratio >= 2) skor += 9;
+      else if (ratio >= 1.5) skor += 8;
+      else if (ratio >= 1) skor += 7;
+      else skor += 6;
+    } else {
+      skor += 6;  // bekleme verisi yok → nötr taban (depo + kırık)
     }
     
     // ===== Kriter 6: Hedef mağaza YTD performansı (10 puan) =====
-    // Genel olarak iyi satan mağaza = daha güvenilir
     if (hedefSTR >= 35) skor += 10;
-    else if (hedefSTR >= 30) skor += 8;
-    else if (hedefSTR >= 25) skor += 6;
-    else if (hedefSTR >= 20) skor += 4;
-    else skor += 2;
+    else if (hedefSTR >= 30) skor += 9;
+    else if (hedefSTR >= 25) skor += 8;
+    else if (hedefSTR >= 20) skor += 6;
+    else skor += 4;
     
     // ===== Kırık beden bonusu (1 beden kaldıysa daha urgent) =====
     if (isKirikBeden && toplamBedenSayisi && stokluBedenSayisi) {
@@ -724,6 +744,7 @@ const ALGO = (function() {
               bedenCurve:getBedenCurve(beden,tp.store.key),
               hedefSTR:hedefStr_,bekledigiGun:0,esik:0,
               isDepoTransfer:true,isKirikBeden:false,
+              seriTamamlama:(tpSizeData.stok||0)===0,
             });
             if (relaxed) guvenEnd_=Math.max(0,guvenEnd_-20);  // şans transferi → düşük güven
             result.depoTransfers.push({
@@ -1028,6 +1049,8 @@ const ALGO = (function() {
             hedefSTR:kSTR,bekledigiGun:src.days||0,esik:dayThreshold,
             isDepoTransfer:false,isKirikBeden:true,
             stokluBedenSayisi:src.stokluB.length,toplamBedenSayisi:toplamSize,
+            // Seri tamamlama: hedefte bu beden yoksa, transfer seriyi tamamlıyor.
+            seriTamamlama:(!kHsize||(kHsize.stok||0)===0),
           });
           // Açıklama metni — HUB modu ile beden modu farklı gerekçe yazar.
           let satisNot;
@@ -1331,6 +1354,7 @@ const ALGO = (function() {
               hedefSTR:tSTR,bekledigiGun:0,esik:0,
               isDepoTransfer:false,isKirikBeden:true,
               stokluBedenSayisi:v.stoklu.length,toplamBedenSayisi:toplamSize,
+              seriTamamlama:(!tSize||(tSize.stok||0)===0),
             });
             result.kirikBeden.push({
               gonderen:pdata.stores[sk].meta,hedef:target,
@@ -1535,7 +1559,7 @@ const ALGO = (function() {
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.9',
+    VERSION:'v8.10',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();

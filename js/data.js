@@ -18,7 +18,7 @@ const DATA = (function() {
   // ========== INDEXEDDB ==========
   
   const DB_NAME = 'utopian_transfer_v8';
-  const DB_VERSION = 1;
+  const DB_VERSION = 2;
   let db = null;
 
   function openDB() {
@@ -30,6 +30,8 @@ const DATA = (function() {
         if (!d.objectStoreNames.contains('history')) d.createObjectStore('history', { keyPath: 'id' });
         if (!d.objectStoreNames.contains('settings')) d.createObjectStore('settings');
         if (!d.objectStoreNames.contains('images')) d.createObjectStore('images');
+        // v2: fotoğraf meta verisi — hangi SKU'lar kayıtlı, son güncelleme tarihi
+        if (!d.objectStoreNames.contains('imageMeta')) d.createObjectStore('imageMeta');
       };
       req.onsuccess = (e) => { db = e.target.result; resolve(db); };
       req.onerror = (e) => reject(e);
@@ -77,6 +79,17 @@ const DATA = (function() {
       const tx = d.transaction(store, 'readonly');
       const r = tx.objectStore(store).getAll();
       r.onsuccess = () => res(r.result);
+      r.onerror = (e) => rej(e);
+    });
+  }
+
+  // v8.10: bir store'daki TÜM anahtarları getir (artımlı fotoğraf yükleme için)
+  async function dbGetAllKeys(store) {
+    const d = await getDB();
+    return new Promise((res, rej) => {
+      const tx = d.transaction(store, 'readonly');
+      const r = tx.objectStore(store).getAllKeys();
+      r.onsuccess = () => res(r.result || []);
       r.onerror = (e) => rej(e);
     });
   }
@@ -574,6 +587,7 @@ const DATA = (function() {
     dbPut,
     dbDelete,
     dbGetAll,
+    dbGetAllKeys,
     
     loadNebim,
     loadTakim,

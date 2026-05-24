@@ -63,153 +63,185 @@ const UI = (function() {
     else if (type === 'irsaliye') DATA.loadIrsaliye(fakeEvent);
   }
   
-  // ========== GÖRSEL YÖNETİMİ ==========
-  
+  // ========== GÖRSEL YÖNETİMİ (v8.10 — kalıcı + artımlı) ==========
+  // Tasarım:
+  //  - Klasör seçilince TÜM ürün klasörleri taranır.
+  //  - Bellekte (IndexedDB) OLMAYAN fotoğraflar otomatik kaydedilir (artımlı).
+  //  - Bir kez yüklenen fotoğraf kalıcıdır; tarayıcı/güncelleme silmez.
+  //  - Son güncelleme tarihi saklanır ve ekranda gösterilir.
+  //  - 2 hafta sonra yeni ürün gelirse: aynı klasör seçilir, SADECE yeni
+  //    (bellekte olmayan) fotoğraflar eklenir — tümü yeniden yüklenmez.
+
+  let pickerBusy = false;   // showDirectoryPicker çift-tık kilidi
+
   async function pickFolder() {
+    // KİLİT: "File picker already active" hatasını önler
+    if (pickerBusy) return;
+    pickerBusy = true;
+    const btn = $('btnFolder');
+    const origLabel = btn ? btn.textContent : '';
     try {
+      if (!window.showDirectoryPicker) {
+        alert('Tarayıcınız klasör seçmeyi desteklemiyor. Lütfen Chrome veya Edge kullanın.');
+        return;
+      }
       const dh = await window.showDirectoryPicker({ mode: 'read' });
+      if (btn) btn.textContent = '⏳ Taranıyor...';
+
+      // Bellekte zaten kayıtlı SKU anahtarları (artımlı yükleme için)
+      let mevcutKeys = new Set();
+      try {
+        const keys = await DATA.dbGetAllKeys('images');
+        mevcutKeys = new Set(keys);
+      } catch (e) { /* ilk kez — boş */ }
+
+      const photoRegex = /\.(jpg|jpeg|png|webp|gif|tiff|tif|bmp|svg|heic|heif|ico)$/i;
       imageHandles = {};
-      let cnt = 0;
-      const photoRegex = /\.(jpg|jpeg|png|webp|gif|tiff|tif|bmp|svg|heic|heif|ico|psd|raw|cr2|nef|arw|dng|eps|ai|pdf)$/i;
-      
-      // NEBIMSRV klasör yapısı: 
-      // OfficialForms/
-      //   Y26111614907430-CA/        <- ürün+renk klasörü (klasör adı = SKU)
-      //     Y26111614907430-CA.jpg   <- DOĞRUDAN BU klasörde dosya (öncelik!)
-      //     ColorPhotos/             <- altklasör
-      //     MiscPhotos/              <- altklasör
-      
-      for await (const [name, handle] of dh.entries()) {
-        if (handle.kind === 'directory') {
-          let found = null;
-          
-          // 1. ÖNCE doğrudan klasörün içine bak (Y26....jpg gibi)
+      let bulunan = 0;
+
+      // Bir klasör handle'ından ilk fotoğrafı bul (alt klasörler dahil)
+      async function ilkFotograf(handle) {
+        try {
+          for await (const [fn, fh] of handle.entries()) {
+            if (fh.kind === 'file' && photoRegex.test(fn)) return fh;
+          }
+        } catch (e) {}
+        for (const sub of ['ColorPhotos', 'MiscPhotos']) {
           try {
-            for await (const [fn, fh] of handle.entries()) {
-              if (fh.kind === 'file' && photoRegex.test(fn)) {
-                found = fh;
-                break;
+            const sd = await handle.getDirectoryHandle(sub).catch(() => null);
+            if (sd) {
+              for await (const [fn, fh] of sd.entries()) {
+                if (fh.kind === 'file' && photoRegex.test(fn)) return fh;
               }
             }
-          } catch (err) { /* erişim yoksa devam */ }
-          
-          // 2. Bulunmadıysa ColorPhotos altklasörüne bak
-          if (!found) {
-            try {
-              const cp = await handle.getDirectoryHandle('ColorPhotos').catch(() => null);
-              if (cp) {
-                for await (const [fn, fh] of cp.entries()) {
-                  if (fh.kind === 'file' && photoRegex.test(fn)) {
-                    found = fh;
-                    break;
-                  }
-                }
+          } catch (e) {}
+        }
+        try {
+          for await (const [sn, sh] of handle.entries()) {
+            if (sh.kind === 'directory') {
+              for await (const [fn, fh] of sh.entries()) {
+                if (fh.kind === 'file' && photoRegex.test(fn)) return fh;
               }
-            } catch (err) {}
+            }
           }
-          
-          // 3. Hala yoksa MiscPhotos'a bak
-          if (!found) {
-            try {
-              const mp = await handle.getDirectoryHandle('MiscPhotos').catch(() => null);
-              if (mp) {
-                for await (const [fn, fh] of mp.entries()) {
-                  if (fh.kind === 'file' && photoRegex.test(fn)) {
-                    found = fh;
-                    break;
-                  }
-                }
-              }
-            } catch (err) {}
-          }
-          
-          // 4. Tüm altklasörlere bak (son çare)
-          if (!found) {
-            try {
-              for await (const [subName, subHandle] of handle.entries()) {
-                if (subHandle.kind === 'directory') {
-                  for await (const [fn, fh] of subHandle.entries()) {
-                    if (fh.kind === 'file' && photoRegex.test(fn)) {
-                      found = fh;
-                      break;
-                    }
-                  }
-                  if (found) break;
-                }
-              }
-            } catch (err) {}
-          }
-          
-          if (found) {
-            // Birden fazla varyasyon olarak kaydet (renk eki olabilir veya olmayabilir)
-            const upperName = name.toUpperCase();
-            imageHandles[upperName] = found;
-            
-            // Y26111614907430-CA → Y26111614907430 (renk eki olmadan)
-            const noColorBase = name.replace(/-[A-Za-z0-9]+$/, '');
-            if (noColorBase !== name) imageHandles[noColorBase.toUpperCase()] = found;
-            
-            // Y26111614907430-CA → Y26111614907430-C (kısaltma)
-            const shortBase = name.replace(/-([A-Za-z])([A-Za-z]+)$/, '-$1');
-            if (shortBase !== name) imageHandles[shortBase.toUpperCase()] = found;
-            
-            cnt++;
-          }
+        } catch (e) {}
+        return null;
+      }
+
+      // Klasördeki TÜM ürün klasörlerini tara
+      for await (const [name, handle] of dh.entries()) {
+        let found = null, baseName = null;
+        if (handle.kind === 'directory') {
+          found = await ilkFotograf(handle);
+          baseName = name;
         } else if (handle.kind === 'file' && photoRegex.test(name)) {
-          // Doğrudan dosya seçilmişse (örnek: Y26111614907430-CA.jpg)
-          const baseName = name.replace(/\.[^.]+$/, ''); // uzantı kaldır
-          imageHandles[baseName.toUpperCase()] = handle;
-          const noColorBase = baseName.replace(/-[A-Za-z0-9]+$/, '');
-          if (noColorBase !== baseName) imageHandles[noColorBase.toUpperCase()] = handle;
-          cnt++;
+          found = handle;
+          baseName = name.replace(/\.[^.]+$/, '');
+        }
+        if (found && baseName) {
+          const up = baseName.toUpperCase();
+          imageHandles[up] = found;
+          const noColor = baseName.replace(/-[A-Za-z0-9]+$/, '').toUpperCase();
+          if (noColor !== up) imageHandles[noColor] = found;
+          const shortB = baseName.replace(/-([A-Za-z])([A-Za-z]+)$/, '-$1').toUpperCase();
+          if (shortB !== up) imageHandles[shortB] = found;
+          bulunan++;
         }
       }
-      
+
       folderOk = true;
-      $('imgCnt').textContent = `${cnt} fotoğraf bulundu`;
-      $('btnCache').style.display = 'inline-flex';
-      $('btnFolder').textContent = '✅ Klasör yüklendi';
-      console.log('Fotoğraflar yüklendi:', cnt, 'ürün. İlk 5 anahtar:', Object.keys(imageHandles).slice(0,5));
+
+      // ARTIMLI KAYDETME: sadece bellekte OLMAYAN fotoğrafları kaydet
+      const tumKeyler = Object.keys(imageHandles);
+      const yeniKeyler = tumKeyler.filter(k => !mevcutKeys.has(k));
+
+      if (yeniKeyler.length === 0) {
+        $('imgCnt').innerHTML = `<b>${mevcutKeys.size}</b> fotoğraf bellekte · yeni fotoğraf yok ✓`;
+        if (btn) btn.textContent = '✅ Güncel';
+        await gosterGuncellemeTarihi();
+        return;
+      }
+
+      if (btn) btn.textContent = `💾 ${yeniKeyler.length} yeni kaydediliyor...`;
+      let kaydedilen = 0;
+      for (const key of yeniKeyler) {
+        try {
+          const f = await imageHandles[key].getFile();
+          const blob = await f.arrayBuffer();
+          await DATA.dbPut('images', blob, key);
+          kaydedilen++;
+          if (kaydedilen % 25 === 0 && btn) {
+            btn.textContent = `💾 ${kaydedilen}/${yeniKeyler.length}...`;
+          }
+        } catch (e) { /* tek dosya hatası — atla */ }
+      }
+
+      // Son güncelleme tarihini sakla
+      const simdi = new Date().toISOString();
+      await DATA.dbPut('imageMeta', simdi, 'lastUpdate');
+      const toplam = mevcutKeys.size + kaydedilen;
+      await DATA.dbPut('imageMeta', toplam, 'count');
+
+      dbImagesReady = true;
+      $('imgCnt').innerHTML = `<b>${toplam}</b> fotoğraf bellekte · <b>${kaydedilen}</b> yeni eklendi ✓`;
+      if (btn) btn.textContent = '✅ Klasör yüklendi';
+      $('btnCache').style.display = 'none';
+      $('btnCached').style.display = 'inline-flex';
+      $('imgAct').classList.add('done');
+      await gosterGuncellemeTarihi();
+      console.log(`Fotoğraf: ${bulunan} bulundu, ${kaydedilen} yeni kaydedildi, toplam ${toplam} bellekte.`);
+
     } catch (e) {
       if (e.name !== 'AbortError') {
         console.error('pickFolder hatası:', e);
         alert('Klasör okuma hatası: ' + e.message);
       }
+      if (btn) btn.textContent = origLabel || '📁 Klasör Seç';
+    } finally {
+      pickerBusy = false;   // KİLİDİ AÇ
     }
   }
-  
+
+  // cacheImages artık pickFolder içinde otomatik — buton geriye dönük dursun
   async function cacheImages() {
-    if (!folderOk) return;
-    $('btnCache').textContent = '💾 Kaydediliyor...';
-    let saved = 0;
-    for (const [key, handle] of Object.entries(imageHandles)) {
-      try {
-        const f = await handle.getFile();
-        const blob = await f.arrayBuffer();
-        await DATA.dbPut('images', blob, key);
-        saved++;
-      } catch (e) { /* skip */ }
-    }
-    dbImagesReady = true;
-    $('imgCnt').textContent = `${saved} fotoğraf önbellekte`;
+    // Yeni akışta kaydetme pickFolder içinde otomatik yapılıyor.
     $('btnCache').style.display = 'none';
-    $('btnCached').style.display = 'inline-flex';
-    $('imgAct').classList.add('done');
   }
-  
+
+  // Son güncelleme tarihini ekranda göster
+  async function gosterGuncellemeTarihi() {
+    try {
+      const iso = await DATA.dbGet('imageMeta', 'lastUpdate');
+      if (iso) {
+        const d = new Date(iso);
+        const el = $('imgDate');
+        if (el) {
+          el.textContent = '📅 Son fotoğraf güncellemesi: ' + d.toLocaleString('tr');
+          el.style.display = 'block';
+        }
+      }
+    } catch (e) { /* skip */ }
+  }
+
   async function showImage(productCode) {
     const img = $('imgEl'), no = $('imgNo');
     $('imgKod').textContent = productCode;
     const key = productCode.toUpperCase();
-    
-    // IndexedDB
+
+    // 1) IndexedDB — kalıcı bellek
     if (dbImagesReady) {
       try {
         let blob = await DATA.dbGet('images', key);
         if (!blob) {
-          // Prefix match
-          const allKeys = await DATA.dbGetAll('images');
-          // Bu yöntem all keys'i getirmez, prefix match için ayrı yöntem lazım
+          // Renk eki olmadan dene
+          const noColor = key.replace(/-[A-Za-z0-9]+$/, '');
+          if (noColor !== key) blob = await DATA.dbGet('images', noColor);
+        }
+        if (!blob) {
+          // Prefix eşleşmesi (tüm anahtarlar arasında)
+          const keys = await DATA.dbGetAllKeys('images');
+          const m = keys.find(k => k.startsWith(key) || key.startsWith(k));
+          if (m) blob = await DATA.dbGet('images', m);
         }
         if (blob) {
           const u = URL.createObjectURL(new Blob([blob]));
@@ -221,13 +253,13 @@ const UI = (function() {
         }
       } catch (e) { /* skip */ }
     }
-    
-    // Yerel klasör
+
+    // 2) Yerel klasör (oturum içi)
     if (folderOk) {
       let h = imageHandles[key];
       if (!h) {
         for (const [ik, ih] of Object.entries(imageHandles)) {
-          if (ik.startsWith(key)) { h = ih; break; }
+          if (ik.startsWith(key) || key.startsWith(ik)) { h = ih; break; }
         }
       }
       if (h) {
@@ -242,26 +274,24 @@ const UI = (function() {
         } catch (e) { /* skip */ }
       }
     }
-    
+
     img.style.display = 'none';
     no.style.display = 'block';
-    no.innerHTML = (dbImagesReady || folderOk) ? '<b>GÖRSEL YOK</b>' : 'Klasör seçin veya<br>önbellek yükleyin';
+    no.innerHTML = (dbImagesReady || folderOk) ? '<b>GÖRSEL YOK</b>' : 'Klasör seçin';
   }
-  
-  // Cache bilgisi başlangıçta kontrol
+
+  // Başlangıçta önbellek durumunu kontrol et
   async function checkImageCache() {
     try {
-      const d = await DATA.getDB();
-      const tx = d.transaction('images', 'readonly');
-      const r = tx.objectStore('images').count();
-      r.onsuccess = () => {
-        if (r.result > 0) {
-          dbImagesReady = true;
-          $('imgCnt').textContent = `${r.result} fotoğraf önbellekte`;
-          $('btnCached').style.display = 'inline-flex';
-          $('btnCache').style.display = 'none';
-        }
-      };
+      const keys = await DATA.dbGetAllKeys('images');
+      if (keys && keys.length > 0) {
+        dbImagesReady = true;
+        $('imgCnt').innerHTML = `<b>${keys.length}</b> fotoğraf bellekte ✓`;
+        $('btnCached').style.display = 'inline-flex';
+        $('btnCache').style.display = 'none';
+        $('btnFolder').textContent = '📁 Yeni Fotoğraf Ekle';
+        await gosterGuncellemeTarihi();
+      }
     } catch (e) { /* skip */ }
   }
   
