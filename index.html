@@ -18,7 +18,7 @@
 <header>
   <div class="hd-l">
     <div class="logo">UTOPIAN <span>TRANSFER</span></div>
-    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.1 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.9 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
   </div>
   <div class="hd-stats" id="hdStats" style="display:none">
     <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
@@ -156,52 +156,17 @@
 
         <!-- TABLOLAR -->
         <div class="tabs">
-          <div class="tab active" onclick="UI.switchTab('depo')">📦 Depo Transfer <span class="badge by" id="tcDepo"></span></div>
-          <div class="tab" onclick="UI.switchTab('mag')">🔄 Mağaza Arası <span class="badge by" id="tcMag"></span></div>
-          <div class="tab" onclick="UI.switchTab('kirik')">⚠️ Kırık Beden <span class="badge by" id="tcKirik"></span></div>
+          <div class="tab active" onclick="UI.switchTab('all')">🔁 Tüm Transferler <span class="badge by" id="tcAll"></span></div>
           <div class="tab" onclick="UI.switchTab('bek')">🔍 Bekleyen <span class="badge by" id="tcBek"></span></div>
-          <div class="tab" onclick="UI.switchTab('hata')">❌ Hatalı Tarih <span class="badge br" id="tcHata"></span></div>
+          <div class="tab" onclick="UI.switchTab('hata')">🚚 Yeni Giriş / Yolda <span class="badge by" id="tcHata"></span></div>
           <div class="tab" onclick="UI.switchTab('env')">📊 Envanter</div>
           <div class="tab" onclick="UI.switchTab('perf')">🎯 Performans</div>
         </div>
 
-        <!-- FİLTRELER -->
+        <!-- ARAÇLAR -->
         <div class="filters">
-          <div class="fg"><div class="fl">Sezon</div>
-            <select id="fSezon" onchange="UI.applyFilters()">
-              <option value="">Tümü</option>
-              <option value="YENI">Yeni Sezon (Y26)</option>
-              <option value="VIRMAN">Virman</option>
-            </select>
-          </div>
-          <div class="fg"><div class="fl">Kategori</div>
-            <select id="fKategori" onchange="UI.applyFilters()">
-              <option value="">Tümü</option>
-              <option value="GIYIM">Tekstil + Dış Giyim</option>
-              <option value="ÇANTA">Çanta</option>
-              <option value="AYAKKABI">Ayakkabı</option>
-              <option value="AKSESUAR">Aksesuar</option>
-              <option value="KEMER">Kemer</option>
-            </select>
-          </div>
-          <div class="fg"><div class="fl">Alt Grup</div>
-            <select id="fAltGrup" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
-          </div>
-          <div class="fg"><div class="fl">Takım</div>
-            <select id="fTakim" onchange="UI.applyFilters()">
-              <option value="">Tümü</option>
-              <option value="TAKIM">Takım Ürün</option>
-              <option value="DEGIL">Takım Değil</option>
-            </select>
-          </div>
-          <div class="fg"><div class="fl">Hedef Mağaza</div>
-            <select id="fHedef" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
-          </div>
-          <div class="fg"><div class="fl">Gönderen</div>
-            <select id="fGonderen" onchange="UI.applyFilters()"><option value="">Tümü</option></select>
-          </div>
           <div class="fg"><div class="fl">Ara (Kod / Ad)</div>
-            <input type="text" id="fSearch" placeholder="..." oninput="UI.applyFilters()">
+            <input type="text" id="fSearch" placeholder="ürün kodu veya adı..." oninput="UI.applyColFilters()">
           </div>
           <div class="filter-actions">
             <button class="btn btn-g" onclick="UI.resetFilters()">↺ Sıfırla</button>
@@ -222,60 +187,42 @@
         </div>
 
         <!-- TAB İÇERİKLERİ -->
-        <div id="pDepo" class="tab-content">
+        <div id="pAll" class="tab-content">
           <div class="tw">
-            <table>
-              <thead><tr>
-                <th style="background:#FEF3C7;color:#92400E;font-weight:700">📦 GÖNDERİCİ DEPO</th>
-                <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
-                <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th><th>STOK</th>
-                <th>TAKIM</th><th>MAĞAZA DURUMU</th>
-                <th style="background:#DBEAFE;color:#1E40AF;font-weight:700">GÜVEN %</th>
-                <th>NEDEN</th>
-                <th>ADET</th>
-                <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
-              </tr></thead>
-              <tbody id="tbDepo"></tbody>
-            </table>
-            <div class="pg" id="pgDepo"></div>
-          </div>
-        </div>
-
-        <div id="pMag" class="tab-content hidden">
-          <div class="tw">
-            <table>
-              <thead><tr>
-                <th style="background:#FEF3C7;color:#92400E;font-weight:700">🏬 GÖNDERİCİ MAĞAZA</th>
+            <table id="tblAll">
+              <thead>
+              <tr class="hdr-row">
+                <th style="background:#EDE9FE;color:#5B21B6;font-weight:700">TÜR</th>
+                <th style="background:#FEF3C7;color:#92400E;font-weight:700">📦 GÖNDERİCİ</th>
                 <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
                 <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
-                <th>GİRİŞ</th><th>TAKIM</th>
+                <th>TAKIM</th>
                 <th style="background:#DBEAFE;color:#1E40AF;font-weight:700">GÜVEN %</th>
                 <th>NEDEN</th>
                 <th>ADET</th>
                 <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
-              </tr></thead>
-              <tbody id="tbMag"></tbody>
+              </tr>
+              <tr class="filter-row">
+                <th><select class="cf" data-col="tur" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="gonderen" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="sezon" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="sezonDurum" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="anaGrup" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="altGrup" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><input type="text" class="cf" data-col="urunAdi" placeholder="filtre..." oninput="UI.applyColFilters()"></th>
+                <th><input type="text" class="cf" data-col="urunKodu" placeholder="filtre..." oninput="UI.applyColFilters()"></th>
+                <th><select class="cf" data-col="renk" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="beden" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="takim" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+                <th><select class="cf" data-col="guven" onchange="UI.applyColFilters()"><option value="">Tümü</option><option value="90">%90+</option><option value="75">%75-89</option><option value="0">%75 altı</option></select></th>
+                <th><input type="text" class="cf" data-col="neden" placeholder="filtre..." oninput="UI.applyColFilters()"></th>
+                <th></th>
+                <th><select class="cf" data-col="hedef" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
+              </tr>
+              </thead>
+              <tbody id="tbAll"></tbody>
             </table>
-            <div class="pg" id="pgMag"></div>
-          </div>
-        </div>
-
-        <div id="pKirik" class="tab-content hidden">
-          <div class="alert alert-warn">⚠️ Kırık Beden — KEY: Depo+Ürün+Renk · Stoklu beden sayısı 1 ise kırık (üretilmiş 3+ bedenli ürünler için)</div>
-          <div class="tw">
-            <table>
-              <thead><tr>
-                <th style="background:#FEF3C7;color:#92400E;font-weight:700">🏬 GÖNDERİCİ MAĞAZA</th>
-                <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
-                <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th>
-                <th>KALAN BEDEN</th><th>AD.</th><th>SİZE</th><th>TAKIM</th>
-                <th style="background:#DBEAFE;color:#1E40AF;font-weight:700">GÜVEN %</th>
-                <th>NEDEN</th>
-                <th style="background:#D1FAE5;color:#065F46;font-weight:700">🏬 HEDEF MAĞAZA</th>
-              </tr></thead>
-              <tbody id="tbKirik"></tbody>
-            </table>
-            <div class="pg" id="pgKirik"></div>
+            <div class="pg" id="pgAll"></div>
           </div>
         </div>
 
@@ -295,12 +242,12 @@
         </div>
 
         <div id="pHata" class="tab-content hidden">
-          <div class="alert alert-error">❌ Mağaza Giriş Tarihi <b>1.1.1900</b> olan kayıtlar — Nebim'de hatalı kayıt, transfere dahil EDİLMEDİ</div>
+          <div class="alert alert-warn">🚚 Mağaza Giriş Tarihi <b>1.1.1900</b> olan kayıtlar — ürün depoya yeni girmiş ve mağazaya sevk edilmiş; mağaza henüz fiziksel teslim almamış (yolda/nakil). Transfere dahil <b>EDİLMEDİ</b>; mağaza teslim aldığında bir sonraki çalışmada normal değerlendirilecek.</div>
           <div class="tw">
             <table>
               <thead><tr>
-                <th>DEPO</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
-                <th>TARİH</th><th>STOK</th><th>SATIŞ</th><th>SEBEP</th>
+                <th>MAĞAZA</th><th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
+                <th>MAĞAZA GİRİŞ TARİHİ</th><th>STOK</th><th>SATIŞ</th><th>DURUM</th>
               </tr></thead>
               <tbody id="tbHata"></tbody>
             </table>
