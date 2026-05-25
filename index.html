@@ -18,7 +18,7 @@
 <header>
   <div class="hd-l">
     <div class="logo">UTOPIAN <span>TRANSFER</span></div>
-    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.11 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.14 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
   </div>
   <div class="hd-stats" id="hdStats" style="display:none">
     <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
@@ -75,7 +75,7 @@
         <div class="upl-row">
           <div id="seasonBox" class="upl-box" style="border:2px solid #B8864F !important;cursor:default;" onclick="document.getElementById('newSeasonInput').focus()">
             <div class="upl-ico">🏷️</div>
-            <div class="upl-t" style="color:#B8864F;">Yeni Sezon Kodu</div>
+            <div class="upl-t" style="color:#B8864F;">Yeni Sezon Kodu &amp; Başlangıç</div>
             <div class="upl-s">Y26 yazın → YENİ SEZON<br>Diğerleri → VİRMAN</div>
             <input
               id="newSeasonInput"
@@ -83,12 +83,21 @@
               value="Y26"
               maxlength="6"
               placeholder="Y26"
-              style="width:90px;padding:7px 10px;font-size:22px;font-weight:700;font-family:monospace;text-transform:uppercase;color:#D4A574;background:#0F172A;border:2px solid #B8864F;border-radius:6px;text-align:center;letter-spacing:3px;outline:none;display:block;margin:4px auto 8px;cursor:text;"
+              style="width:90px;padding:7px 10px;font-size:22px;font-weight:700;font-family:monospace;text-transform:uppercase;color:#D4A574;background:#0F172A;border:2px solid #B8864F;border-radius:6px;text-align:center;letter-spacing:3px;outline:none;display:block;margin:4px auto 6px;cursor:text;"
               oninput="this.value=this.value.toUpperCase().trim();var l=document.getElementById('curSeasonLabel');if(l)l.textContent=this.value||'Y26'"
               onclick="event.stopPropagation()"
             >
+            <input
+              id="seasonStartInput"
+              type="date"
+              value="2026-02-16"
+              onclick="event.stopPropagation()"
+              onchange="UI.saveSeasonStart&&UI.saveSeasonStart()"
+              style="width:140px;padding:5px 8px;font-size:12px;font-weight:600;font-family:monospace;color:#D4A574;background:#0F172A;border:2px solid #B8864F;border-radius:6px;text-align:center;outline:none;display:block;margin:0 auto 6px;cursor:text;"
+            >
             <div style="font-size:9px;color:#6B7280;text-align:center;">
-              <span id="curSeasonLabel" style="color:#D4A574;font-weight:700">Y26</span> = Yeni Sezon
+              <span id="curSeasonLabel" style="color:#D4A574;font-weight:700">Y26</span> sezonu —
+              <span id="seasonStartLabel" style="color:#D4A574;font-weight:700">16.02.2026</span> başlangıçlı
             </div>
           </div>
 
@@ -99,6 +108,17 @@
             <button class="btn btn-p" onclick="event.stopPropagation();document.getElementById('f1').click()">Dosya Seç</button>
             <input type="file" id="f1" accept=".xlsx,.xls" onchange="DATA.loadNebim(event)">
             <div id="ds" class="upl-status"></div>
+            <!-- v8.13: Transfer modu seçimi -->
+            <div class="trf-mode" onclick="event.stopPropagation()">
+              <label class="trf-chk" id="lblDepo">
+                <input type="checkbox" id="chkDepo" checked onchange="UI.updateTransferMode()">
+                <span>📦 Sadece Depodan Transfer</span>
+              </label>
+              <label class="trf-chk" id="lblMag">
+                <input type="checkbox" id="chkMag" checked onchange="UI.updateTransferMode()">
+                <span>🔄 Mağazalar Arası + Kırık Transfer</span>
+              </label>
+            </div>
           </div>
           
           <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()">
@@ -161,6 +181,7 @@
           <div class="tab" onclick="UI.switchTab('bek')">🔍 Bekleyen <span class="badge by" id="tcBek"></span></div>
           <div class="tab" onclick="UI.switchTab('hata')">🚚 Yeni Giriş / Yolda <span class="badge by" id="tcHata"></span></div>
           <div class="tab" onclick="UI.switchTab('env')">📊 Envanter</div>
+          <div class="tab" onclick="UI.switchTab('dna')">🧬 Mağaza DNA</div>
           <div class="tab" onclick="UI.switchTab('perf')">🎯 Performans</div>
         </div>
 
@@ -277,6 +298,16 @@
               Performans raporu için <b>Mağaza Transfer İrsaliyesi Kontrol Listesi</b> dosyası yükleyin.<br>
               <small>Ana ekranda 3. yükleme kutusunu kullanın.</small>
             </div>
+          </div>
+        </div>
+
+        <div id="pDna" class="tab-content hidden">
+          <div class="alert alert-info">🧬 Mağaza × Kategori DNA — Her mağazanın her kategorideki gerçek satış gücü. <b>1.00</b> = ortalama · <b>&gt;1.00</b> = o kategoride güçlü · <b>&lt;1.00</b> = zayıf. Hedef seçiminde kullanılır; veri geldikçe arka planda güncellenir.</div>
+          <div class="tw">
+            <table id="tblDna">
+              <thead><tr id="dnaHead"><th>KATEGORİ (ANA GRUP)</th></tr></thead>
+              <tbody id="tbDna"></tbody>
+            </table>
           </div>
         </div>
 

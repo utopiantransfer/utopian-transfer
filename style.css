@@ -687,3 +687,33 @@ tr:hover td { background: #eff6ff; }
   .summary-grid { grid-template-columns: repeat(2, 1fr); }
   .upl-row { grid-template-columns: 1fr; }
 }
+
+/* v8.13 — Transfer modu seçim kutucukları */
+.trf-mode {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.trf-chk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 1.5px solid #cbd5e1;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  color: #475569;
+  background: #f8fafc;
+  transition: all 0.15s;
+  user-select: none;
+}
+.trf-chk:hover { border-color: #94a3b8; }
+.trf-chk input { width: 15px; height: 15px; cursor: pointer; accent-color: #059669; }
+.trf-chk.on {
+  background: #d1fae5;
+  border-color: #059669;
+  color: #065f46;
+}
