@@ -1,38 +1,40 @@
-# UTOPIAN Transfer v8.10 — GitHub'a Yükleme
+# UTOPIAN Transfer v8.11 — Yükleme ve Test
 
 ## Klasör yapısı
-
 ```
-KÖK dizine:        index.html, style.css, manifest.json, sw.js
-js/ klasörüne:     algo.js, data.js, ui.js, init.js, history.js, perf.js
+KÖK dizine:     index.html, style.css, manifest.json, sw.js
+js/ klasörüne:  algo.js, data.js, ui.js, init.js, history.js, perf.js
 ```
-
-`js` klasöründe SADECE bu 6 `.js` dosyası olmalı. CSS/HTML/json oraya KONMAZ.
+`js` klasöründe SADECE 6 `.js` dosyası olmalı.
 
 ## Yükleme
+1. ZIP'teki 4 dosyayı KÖK dizine, `js` içindeki 6 dosyayı `js` klasörüne yükleyin.
+2. 1-2 dk bekleyin, sitede **Ctrl+F5**.
+3. Başlıkta **"v8.11"** yazmalı.
 
-1. ZIP'teki `index.html`, `style.css`, `manifest.json`, `sw.js` → KÖK dizine.
-2. ZIP'teki `js` klasöründeki 6 dosyayı → `js` klasörüne.
-3. 1-2 dk bekleyin, sitede **Ctrl+F5** yapın.
-4. Başlıkta **"v8.10"** yazmalı.
+## v8.11'de YENİ olanlar
 
-## v8.10'da YENİ olanlar
+### 1. Çalışmayı Kaydet — sayfa yenilense bile kaybolmaz
+- Analiz sonrası sağ üstte **"💾 Çalışmayı Kaydet"** butonu var.
+- Tıklayınca transfer çalışması tarihiyle birlikte kalıcı saklanır.
+- "Önceki Transfer Çalışmaları" listesinde tarih bazlı görünür.
+- Bir kaydın ÜZERİNE ÇİFT TIKLAYIN → o transferin tüm verisi geri
+  yüklenir. Sonra "Excel İndir" derseniz o kaydın Excel'i iner.
+- "📂 Aç" butonu da aynı işi yapar.
 
-### 1. Fotoğraf yönetimi yenilendi
-- **"File picker already active" hatası giderildi** (çift-tık kilidi eklendi).
-- **Tek akış:** "Klasör Seç" → tüm ürün klasörleri taranır → bellekte
-  OLMAYAN fotoğraflar otomatik kaydedilir. Ayrı "Kaydet" butonuna gerek yok.
-- **Kalıcı:** Fotoğraflar IndexedDB'de saklanır; tarayıcı kapansa, program
-  güncellense bile silinmez.
-- **Artımlı güncelleme:** 2 hafta sonra yeni ürün gelince aynı klasörü
-  seçin — program SADECE yeni (bellekte olmayan) fotoğrafları ekler,
-  tümünü yeniden yüklemez.
-- **Son güncelleme tarihi** sol panelde gösterilir.
+### 2. Üçüncü-tur kırık denetimi
+- Önceden: 1. transfer turu → 2. simülasyon (transfer sonrası kırık yakalama).
+- Şimdi: 2. turdan sonra **3. tur** çalışır. 2. turun kendi transferlerinin
+  yarattığı zincir kırıkları veya gözden kaçan kırıkları yakalar.
+- 3. turda da çözülemeyen kırıklar "üçüncü-tur onayı" etiketiyle Bekleyen
+  listesinde — bunlar gerçekten elde kalan, iade/showroom adayı ürünlerdir.
+- Çift kayıt önleme: aynı ürün Bekleyen'e iki kez yazılmaz.
 
-### 2. Güven endeksi kalibrasyonu (%79 → %84 ortalama)
-- Mantıksal olarak sağlam transferler (seri tamamlama, konsolidasyon)
-  artık hak ettikleri puanı alıyor. %75+ transfer oranı: %87.
-- ÖNEMLİ NOT: Ortalama %90'a ZORLANMADI. Gerçekten belirsiz transferler
-  (hiç satılmamış tekil ürün) bilinçli olarak düşük puanda — güven
-  endeksinin dürüst kalması, sizi yanlış transferden koruması için.
-  Detaylı açıklama programı veren kişiden.
+## Test
+1. Veri yükleyip analiz çalıştırın.
+2. Sağ üstte "💾 Çalışmayı Kaydet" → tıklayın → onay mesajı gelmeli.
+3. Sayfayı YENİLEYİN (F5). Ana ekranda "Önceki Transfer Çalışmaları"
+   altında kaydınız tarihiyle görünmeli.
+4. Kaydın üzerine ÇİFT TIKLAYIN → transfer tablosu geri gelmeli.
+5. Kırık sekmesinde "⚡⚡ Üçüncü-tur" yazan satırlar olabilir — bu yeni
+   denetim turunun çalıştığını gösterir.
