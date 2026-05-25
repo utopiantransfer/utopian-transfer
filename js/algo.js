@@ -1,7 +1,34 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.11 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.14 — ALGORİTMA MODÜLÜ
 //
-// v8.11 GELİŞTİRMELERİ:
+// v8.14 GELİŞTİRMESİ (kullanıcı talebi — sadece-depo modunda seri bütünlüğü):
+//  35. SADECE-DEPO MODU SERİ TAMAMLAMA DESTEĞİ — "Sadece Depodan Transfer"
+//      modunda bile, depodan çıkan ürün alıcı mağazada KIRIK oluşturacaksa,
+//      o mağazaya önce depodan sonra diğer mağazalardan eksik bedenler
+//      gönderilip seri tamamlanır. Kaynak mağazada kırık YARATMAMA koşulu
+//      ve "iyi satan mağazadan ürün sökme" kuralı korunur. Seri bütünlüğü
+//      her zaman önceliklidir. Tam modda devreye girmez (2./3. tur yapar).
+//
+//  31. YTD SIRALAMASI İPTAL — Sabit mağaza sıralaması kaldırıldı. Hedef
+//      seçiminde eşitlik bozucu artık ÜRÜN+RENK TOPLAM SATIŞ, sonra stok
+//      zenginliği. Mağazanın o üründeki gerçek performansı esas alınır.
+//  32. TRANSFER MODU SEÇİMİ — İki kutucuk: "Sadece Depodan" / "Mağaza
+//      Arası + Kırık". Sadece depo seçiliyse mağaza+kırık modülleri (2./3.
+//      tur simülasyon dahil) hiç çalışmaz; sadece depodan beden tamamlama.
+//  33. SEZON BAŞLANGIÇ TARİHİ — Sezon koduna ek tarih alanı (Y26→16.02.2026).
+//      Kod↔tarih eşlemesi kalıcı saklanır; stats.seasonStart ile raporlanır.
+//  34. MÜKERRER TRANSFER DENETİMİ — Aynı ürün+renk+beden+kaynak+hedef
+//      ikilisi iki kez listelenmişse fazlası çıktıdan silinir.
+//
+//  30. MAĞAZA × KATEGORİ DNA — Her mağazanın her ana grupta (kategori)
+//      gerçek satış gücü hesaplanır (DNA katsayısı: 1.0 ortalama, >1 güçlü,
+//      <1 zayıf). Hedef seçiminde küçük ama anlamlı ağırlık olarak kullanılır
+//      — sabit YTD sıralamasının kategori körlüğünü giderir. Abiye kırığı
+//      abiyede güçlü mağazaya, denim kırığı denimde güçlü mağazaya yönlenir.
+//      DNA tablosu IndexedDB'de saklanır; her veri yüklemesinde harmanlanarak
+//      güncellenir (yeni %60 + birikmiş geçmiş %40). Sezon başlangıcı
+//      16.02.2026 olduğundan sezonun TÜM satış verisi esas alınır.
+//
 //  28. ÇALIŞMAYI KAYDET — Analiz sonucu artık "Çalışmayı Kaydet" butonuyla
 //      geçmişe (IndexedDB) TAM olarak saklanır. Sayfa yenilense bile kalır;
 //      "Önceki Transfer Çalışmaları" listesinde tarihiyle görünür, çift
@@ -205,6 +232,17 @@ const ALGO = (function() {
   function getCatAvg(anaGrup) { return CAT_WEEKLY_AVG[String(anaGrup||'').toUpperCase()]||0.50; }
 
   // ===== YARDIMCI FONKSİYONLAR =====
+
+  // v8.12: aktif analizin mağaza × kategori DNA tablosu (analyze içinde set edilir)
+  let aktifCategoryDNA = {};
+  // Bir mağazanın belirli ana grupta DNA katsayısı (1.0 = ortalama)
+  function getDNA(anaGrup, storeKey) {
+    const ag = String(anaGrup || 'DİĞER').toUpperCase().trim() || 'DİĞER';
+    const cat = aktifCategoryDNA[ag];
+    if (cat && cat[storeKey]) return cat[storeKey].dna;
+    return 1.0;   // veri yoksa nötr
+  }
+
   function matchStore(depoAdi, depoKodu) {
     const dk=String(depoKodu||'').toUpperCase().trim();
     const adi=String(depoAdi||'').toUpperCase();
@@ -475,7 +513,7 @@ const ALGO = (function() {
   //    ZORUNDA değildir — asıl kriter satış potansiyelidir. Hedefte o
   //    beden+renkte 1'den fazla stok olması transfere engel değildir."
   // Örnek: Panora'nın yetim 40'ı → Bursa (Bursa 40'ı satmış, elinde 1 var).
-  function scoreSizeTarget(perf, beden) {
+  function scoreSizeTarget(perf, beden, anaGrup) {
     if (!perf) return -Infinity;
     const sz = (perf.sizes && perf.sizes[beden]) ? perf.sizes[beden] : { stok: 0, satis: 0 };
     const run = bedenRunBilgisi(perf);
@@ -502,10 +540,20 @@ const ALGO = (function() {
     skor += Math.min(perf.satis || 0, 12) * 3;
     // 5) Mağaza genel hızı — sınırlı ağırlık
     skor += Math.min(perf.velocityScore || 0, 2) * 3;
+    // 6) v8.12 — MAĞAZA × KATEGORİ DNA: o mağaza bu kategoride güçlüyse
+    //    küçük bir prim, zayıfsa küçük bir ceza. Sabit YTD sıralamasının
+    //    kategori körlüğünü giderir; abiye kırığı abiyede güçlü mağazaya,
+    //    denim kırığı denimde güçlü mağazaya hafifçe yönlenir.
+    //    Ağırlık bilinçli olarak küçük tutulur — kanıtlı satış (kriter 1)
+    //    her zaman baskın sinyaldir; DNA yalnızca eşitlik bozar.
+    if (anaGrup && perf.store) {
+      const dna = getDNA(anaGrup, perf.store.key);   // 0.5 – 1.8
+      skor += Math.round((dna - 1.0) * 20);          // ≈ -10 .. +16 puan
+    }
     // NOT (kullanıcı onaylı kural): Bir bedeni HİÇBİR mağaza satmamışsa,
     //   kriter 1 tüm adaylar için 0 olur; bu durumda kazanan, koleksiyon
-    //   derinliği (kriter 3) + rengin toplam satışı (kriter 4) en yüksek
-    //   olan mağazadır — yani EN GÜÇLÜ / TAM KOLEKSİYONLU mağaza.
+    //   derinliği (kriter 3) + rengin toplam satışı (kriter 4) + kategori
+    //   DNA'sı (kriter 6) en yüksek olan mağazadır.
     return skor;
   }
 
@@ -527,6 +575,11 @@ const ALGO = (function() {
     };
     if (!rawData||rawData.length===0) return result;
     result.stats.totalRows=rawData.length;
+    // v8.13: sezon başlangıç tarihi — kullanıcı UI'dan girer, raporda görünür.
+    //   Sezon başlangıcı satış değerlendirmesinin referans noktasıdır;
+    //   ürünler sezonun TÜM satış verisiyle değerlendirilir.
+    result.stats.seasonStart = opts.seasonStart || null;
+    result.stats.seasonCode = newSeasonPrefix;
 
     const productMap={};
     const storeStatsMap={};
@@ -643,7 +696,73 @@ const ALGO = (function() {
       }
     }
 
-    // ===== v8.2 ROL HARİTASI — KAYNAK/HEDEF ÇELİŞKİ ENGELİ =====
+    // ===== v8.12 — MAĞAZA × KATEGORİ DNA =====
+    // Her mağazanın her ana grupta (kategori) gerçek satış gücü.
+    // Mantık: "Panora abiyede güçlü, İzmir denimde güçlü" bilgisini
+    //   sayısallaştırır. Kategori bazında bir mağazanın satış payı,
+    //   o kategorideki ORTALAMA mağaza payına bölünür → DNA katsayısı.
+    //   1.00 = ortalama · >1.00 = o kategoride güçlü · <1.00 = zayıf.
+    // Hedef seçiminde küçük ama anlamlı bir ağırlık olarak kullanılır;
+    //   sabit YTD sıralamasının kategori körlüğünü giderir.
+    // NOT (kullanıcı talebi): Sezon başlangıcı 16.02.2026 olduğundan,
+    //   ürünler değerlendirilirken sezonun TÜM satış verisi esas alınır.
+    const categoryDNA = {};   // anaGrup -> { storeKey -> { satis, pay, dna } }
+    {
+      // 1) kategori × mağaza ham satış toplamı
+      const catStoreSatis = {};   // anaGrup -> storeKey -> toplam satış
+      const catToplam = {};       // anaGrup -> toplam satış (tüm mağazalar)
+      for (const pkey of Object.keys(productMap)) {
+        const pdata = productMap[pkey];
+        const ag = String(pdata.meta.anaGrup || 'DİĞER').toUpperCase().trim() || 'DİĞER';
+        for (const [sk, sd] of Object.entries(pdata.stores)) {
+          const s = sd.totalSatis || 0;
+          if (s <= 0) continue;
+          (catStoreSatis[ag] = catStoreSatis[ag] || {})[sk] =
+            (catStoreSatis[ag][sk] || 0) + s;
+          catToplam[ag] = (catToplam[ag] || 0) + s;
+        }
+      }
+      // 2) DNA katsayısı: mağaza payı / ortalama mağaza payı
+      for (const ag of Object.keys(catStoreSatis)) {
+        const stores = catStoreSatis[ag];
+        const magazaSayisi = Object.keys(stores).length;
+        if (magazaSayisi === 0 || !catToplam[ag]) continue;
+        const ortPay = 1 / magazaSayisi;   // eşit dağılım referansı
+        categoryDNA[ag] = {};
+        for (const [sk, satis] of Object.entries(stores)) {
+          const pay = satis / catToplam[ag];
+          // DNA: 1.0 ortalama; aşırı uçları sınırla (0.5 – 1.8)
+          let dna = ortPay > 0 ? pay / ortPay : 1;
+          dna = Math.max(0.5, Math.min(1.8, dna));
+          categoryDNA[ag][sk] = { satis, pay: Math.round(pay * 100), dna: Math.round(dna * 100) / 100 };
+        }
+      }
+    }
+    result.stats.categoryDNA = categoryDNA;
+
+    // v8.12 — KALICI DNA BİRLEŞTİRME:
+    //   Önceki analizlerden gelen birikmiş DNA (opts.storedDNA) varsa,
+    //   yeni DNA ile harmanlanır. Böylece DNA tablosu her veri yüklemesinde
+    //   zenginleşir; tek bir haftanın dalgalanması tek başına belirleyici
+    //   olmaz. Ağırlık: yeni veri %60, birikmiş geçmiş %40.
+    if (opts.storedDNA && typeof opts.storedDNA === 'object') {
+      for (const ag of Object.keys(categoryDNA)) {
+        const eski = opts.storedDNA[ag];
+        if (!eski) continue;
+        for (const sk of Object.keys(categoryDNA[ag])) {
+          if (eski[sk] && typeof eski[sk].dna === 'number') {
+            const yeni = categoryDNA[ag][sk].dna;
+            const harman = yeni * 0.6 + eski[sk].dna * 0.4;
+            categoryDNA[ag][sk].dna = Math.round(harman * 100) / 100;
+          }
+        }
+      }
+    }
+    // birikmiş DNA olarak dışarı ver — DATA katmanı IndexedDB'ye yazar
+    result.stats.categoryDNA = categoryDNA;
+    aktifCategoryDNA = categoryDNA;
+
+
     // Bir ürün+renk için bir mağaza AYNI ANDA hem kaynak hem hedef olamaz.
     // (CEKET 7421-C hatası: İzmir'den ürün çıkarken aynı ürün İzmir'e gönderiliyordu)
     const roleMap = {};
@@ -654,6 +773,9 @@ const ALGO = (function() {
     function canBeSource(pk, sk) { return !rmGet(pk).targets.has(sk); }
 
     // ===== DEPO → MAĞAZA =====
+    // v8.13: Yalnızca transfer modunda "depo" seçiliyse çalışır.
+    const trfMode = opts.transferMode || { depo:true, magaza:true };
+    if (trfMode.depo)
     for (const pkey of Object.keys(productMap)) {
       const pdata=productMap[pkey];
       if (!pdata.depots['MERKEZ']&&!pdata.depots['SHOWROOM']) continue;
@@ -690,7 +812,7 @@ const ALGO = (function() {
           let ranked=cands
             .map(([k,p])=>({k,p,sc:scoreDepotTarget(p,beden)}))
             .filter(x=>x.sc>-500)   // YETİM riski olan (derinliği olmayan) hedefleri ELE
-            .sort((a,b)=>b.sc-a.sc||(b.p.velocityScore||0)-(a.p.velocityScore||0)||a.p.store.rank-b.p.store.rank);
+            .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||(b.p.stok||0)-(a.p.stok||0));
 
           // RELAKS PASS: satışlı uygun hedef yoksa, en azından koleksiyon
           //   derinliği olan (gelen beden yetim kalmayacak) mağazalara şans ver.
@@ -700,7 +822,7 @@ const ALGO = (function() {
             ranked=Object.entries(pdata.storePerformance)
               .filter(([k,p])=>(!p.sizes[beden]||p.sizes[beden].stok===0)&&bedenRunBilgisi(p).stokluSayisi>0)
               .map(([k,p])=>({k,p,sc:scoreDepotTarget(p,beden)}))
-              .sort((a,b)=>b.sc-a.sc||(b.p.velocityScore||0)-(a.p.velocityScore||0)||a.p.store.rank-b.p.store.rank);
+              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||(b.p.stok||0)-(a.p.stok||0));
             relaxed=true;
           }
           if (ranked.length===0) continue;
@@ -798,6 +920,8 @@ const ALGO = (function() {
     //   olamaz; tam koleksiyonlu mağazaya yığma yapılmaz; sattığı bedeni
     //   tamamlayan + toplam satışı en iyi mağaza tercih edilir) ve hepsini oraya gönder.
 
+    // v8.13: Kırık modülü yalnızca "Mağaza Arası + Kırık" modu seçiliyse çalışır.
+    if (trfMode.magaza)
     for (const pkey of Object.keys(productMap)) {
       const pdata=productMap[pkey];
       if (isKirikMuaf(pdata.meta.anaGrup,pdata.meta.altGrup,'')) continue;
@@ -908,10 +1032,11 @@ const ALGO = (function() {
             stokSize:bedenRunBilgisi(perf).stokluSayisi,rank:perf.store.rank,kirik:false});
         }
         if (hubCands.length) {
-          // Asıl kriter: TOPLAM SATIŞ. Eşitlikte kanıtlı eksik, sonra rank.
+          // v8.13: YTD sıralaması İPTAL. Asıl kriter ÜRÜN+RENK TOPLAM SATIŞ;
+          //   eşitlikte kanıtlı eksik beden, sonra koleksiyon genişliği.
           hubCands.sort((a,b)=>
             b.satis-a.satis||b.kanitliEksik-a.kanitliEksik||
-            b.stokSize-a.stokSize||a.rank-b.rank);
+            b.stokSize-a.stokSize||String(a.sk).localeCompare(String(b.sk)));
           const best=hubCands[0];
           hubSatis=best.satis;
           hubKirikMi=best.kirik;
@@ -999,15 +1124,15 @@ const ALGO = (function() {
           //   adaylığından çıkarılır. HUB istisna: kasıtlı konsolidasyon noktası.
           let adaylar = Object.entries(pdata.storePerformance)
             .filter(([k,p])=>!urunKirikMagazalar.has(k)&&!brokenSourceKeys.has(k)&&canBeTarget(pkey,k))
-            .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
-            .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
+            .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden,pdata.meta.anaGrup)}))
+            .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||(b.p.stok||0)-(a.p.stok||0));
           // Eğer kırık-olmayan hiç aday kalmadıysa (tüm mağazalar kırık) →
           //   en azından kırık-kaynak olmayanlara izin ver (yumuşak geri dönüş).
           if (adaylar.length===0) {
             adaylar = Object.entries(pdata.storePerformance)
               .filter(([k,p])=>!brokenSourceKeys.has(k)&&canBeTarget(pkey,k))
-              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
-              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
+              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden,pdata.meta.anaGrup)}))
+              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||(b.p.stok||0)-(a.p.stok||0));
           }
           if (dususkOlgunluk) {
             // Yalnızca KANITLI EKSİK hedefler: bu bedeni satmış + stoğu 0.
@@ -1109,7 +1234,9 @@ const ALGO = (function() {
     }
 
     // ===== MAĞAZA → MAĞAZA =====
+    // v8.13: Yalnızca "Mağaza Arası + Kırık" modu seçiliyse aday toplanır.
     const magCands=[];
+    if (trfMode.magaza)
     for (const pkey of Object.keys(productMap)) {
       const pdata=productMap[pkey];
       const hasAnySales=Object.values(pdata.stores).some(s=>Object.values(s.sizes).some(sd=>sd.satis>0));
@@ -1238,7 +1365,9 @@ const ALGO = (function() {
     //   (b) HEDEF KIRIĞI — transferi alan mağaza yine de seriyi tamamlayamadı.
     // Tespit edilen yeni kırıklar ek transfere bağlanır; çözülemeyenler
     // şeffaf biçimde 'bekleyen' listesine yazılır.
-    {
+    // v8.13: İkinci/üçüncü tur kırık simülasyonu yalnızca "Mağaza Arası +
+    //   Kırık" modu seçiliyse çalışır (sadece-depo modunda kırık üretilmez).
+    if (trfMode.magaza) {
       const norm = s => String(s||'').toUpperCase().trim();
       // 1) Sanal stok defteri: storeKey → urunKodu|renkKodu → beden → adet
       const vstok = {};
@@ -1326,8 +1455,8 @@ const ALGO = (function() {
                 if (!canBeTarget(prodKey,k)) return false;
                 return true;
               })
-              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
-              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
+              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden,pdata.meta.anaGrup)}))
+              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||(b.p.stok||0)-(a.p.stok||0));
 
             if (aday.length===0 || aday[0].sc < -100) {
               // çözüm yok → şeffaf biçimde bekleyene yaz
@@ -1442,8 +1571,8 @@ const ALGO = (function() {
                 if (!canBeTarget(prodKey,k)) return false;
                 return true;
               })
-              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
-              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
+              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden,pdata.meta.anaGrup)}))
+              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||(b.p.stok||0)-(a.p.stok||0));
 
             if (aday.length===0 || aday[0].sc < -100) {
               // Üçüncü turda da çözülemedi → gerçekten elde kalan kırık.
@@ -1519,6 +1648,165 @@ const ALGO = (function() {
       result.stats.ucuncuTurKalan=ucuncuTurKalan;
     }
 
+    // ============================================================
+    // v8.14 — SADECE-DEPO MODU: SERİ TAMAMLAMA DESTEĞİ
+    // ============================================================
+    // KURAL (kullanıcı talebi): "Sadece Depodan Transfer" modunda bile,
+    //   depodan çıkan bir ürün alıcı mağazada KIRIK oluşturacaksa, o
+    //   mağazaya diğer mağazalardan eksik bedenler gönderilip seri
+    //   tamamlanır. Seri bütünlüğü her zaman önceliğimizdir.
+    // KAPSAM: Bu destek SADECE depo modunda + mağaza modu kapalıyken
+    //   devreye girer (mağaza modu açıksa zaten 2./3. tur bunu yapıyor).
+    //   Yalnızca depo transferinin KIRIK BIRAKTIĞI hedefe müdahale eder —
+    //   geniş kırık taraması değildir; amaç sadece o seriyi tamamlamak.
+    // ÖRNEK (kullanıcının verdiği): İzmir bir rengi çok satmış (%70),
+    //   depodan 1 beden gidiyor (doğru) ama İzmir'de o üründe stok yok →
+    //   tek başına kırık. Bu durumda depodan ek bedenler + diğer
+    //   mağazalardan eksikler İzmir'e gönderilip seri kurulur.
+    let seriDestekEk = 0, seriDestekKalan = 0;
+    if (trfMode.depo && !trfMode.magaza) {
+      const norm2 = s => String(s||'').toUpperCase().trim();
+      // Sanal stok defteri (mevcut mağaza stoğu)
+      const vs = {};
+      for (const pkey of Object.keys(productMap)) {
+        const pd = productMap[pkey];
+        for (const [sk,sd] of Object.entries(pd.stores)) {
+          for (const [b,szd] of Object.entries(sd.sizes)) {
+            if (norm2(b)==='STD') continue;
+            const vk = sk+'#'+pkey;
+            (vs[vk]=vs[vk]||{})[b]=(vs[vk][b]||0)+(szd.stok||0);
+          }
+        }
+      }
+      // Depo transferlerini sanal stoğa uygula (hedef mağaza stoğu artar)
+      for (const t of result.depoTransfers) {
+        const hk = t.distrib&&t.distrib[0]?t.distrib[0].store.key:null;
+        if (!hk) continue;
+        const pkey = t.urunKodu+'|'+t.renkKodu;
+        const vk = hk+'#'+pkey;
+        (vs[vk]=vs[vk]||{})[t.beden]=(vs[vk][t.beden]||0)+(t.adet||0);
+      }
+      // Depo transferi ALAN her hedefi kontrol et: kırık kaldı mı?
+      const etkilenenHedef = {};   // pkey -> Set(storeKey)
+      for (const t of result.depoTransfers) {
+        const hk = t.distrib&&t.distrib[0]?t.distrib[0].store.key:null;
+        if (!hk) continue;
+        const pkey = t.urunKodu+'|'+t.renkKodu;
+        (etkilenenHedef[pkey]=etkilenenHedef[pkey]||new Set()).add(hk);
+      }
+      for (const pkey of Object.keys(etkilenenHedef)) {
+        const pdata = productMap[pkey];
+        if (!pdata) continue;
+        if (isKirikMuaf(pdata.meta.anaGrup,pdata.meta.altGrup,'')) continue;
+        const tumB = new Set();
+        for (const sd of Object.values(pdata.stores))
+          for (const b of Object.keys(sd.sizes)) if (norm2(b)!=='STD') tumB.add(b);
+        const toplamSize = tumB.size;
+        const kirikEsik = getKirikThreshold(toplamSize);
+        if (kirikEsik===0) continue;
+
+        for (const hk of etkilenenHedef[pkey]) {
+          const vkH = hk+'#'+pkey;
+          const sizesH = vs[vkH]||{};
+          const stokluH = Object.keys(sizesH).filter(b=>sizesH[b]>0);
+          // Transfer sonrası hedef KIRIK mı? (değilse dokunma)
+          if (stokluH.length===0 || stokluH.length>kirikEsik) continue;
+
+          // Hedefte EKSİK olan bedenler — bunları tamamlayacağız
+          const eksikBedenler = [...tumB].filter(b=>!(sizesH[b]>0));
+          for (const beden of eksikBedenler) {
+            // Kaynak ara: önce DEPO, sonra MAĞAZALAR (kullanıcı önceliği)
+            let gonderildi = false;
+            // 1) DEPODA bu beden var mı?
+            for (const depKey of ['MERKEZ','SHOWROOM']) {
+              const dep = pdata.depots&&pdata.depots[depKey];
+              if (!dep) continue;
+              const dSize = dep.sizes&&dep.sizes[beden];
+              if (dSize && dSize.stok>0) {
+                rmAddTarget(pkey,hk);
+                result.depoTransfers.push({
+                  gonderici:dep.meta||{label:depKey==='MERKEZ'?'Merkez Depo':'Showroom'},
+                  urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
+                  renk:pdata.meta.renk,renkKodu:pdata.meta.renkKodu,beden,adet:1,
+                  anaGrup:pdata.meta.anaGrup,altGrup:pdata.meta.altGrup,
+                  malGrubu:pdata.meta.malGrubu,
+                  sezonTipi:pdata.meta.isNewSeason?'YENI':'VIRMAN',
+                  sezonDurum:pdata.meta.sezonDurum,takimDurumu:pdata.meta.takimDurumu,
+                  transferTipi:'SERI_TAMAMLAMA',
+                  guvenEndeksi:88,confidence:88,
+                  distrib:[{store:pdata.storePerformance[hk].store,qty:1}],
+                  hedef:pdata.storePerformance[hk].store,
+                  neden:`🔗 Seri tamamlama (depo): ${hk} mağazasında depo transferi sonrası kırık oluşmaması için eksik ${beden} bedeni depodan eklendi`,
+                  seriTamamlama:true,
+                });
+                sizesH[beden]=(sizesH[beden]||0)+1;
+                seriDestekEk++; gonderildi=true;
+                break;
+              }
+            }
+            if (gonderildi) continue;
+            // 2) DİĞER MAĞAZALARDA bu beden var mı? (kaynak mağazada kırık
+            //    YARATMAMAK koşuluyla — o bedeni çıkarınca kaynak kırık olmasın)
+            const kaynakAday = [];
+            for (const [sk,sd] of Object.entries(pdata.stores)) {
+              if (sk===hk) continue;
+              const vkS = sk+'#'+pkey;
+              const sizesS = vs[vkS]||{};
+              if (!(sizesS[beden]>0)) continue;
+              const stokluS = Object.keys(sizesS).filter(b=>sizesS[b]>0);
+              // Bu bedeni çıkarınca kaynak kırık olur mu?
+              const sonrasi = stokluS.filter(b=>b!==beden||sizesS[b]>1);
+              if (sonrasi.length<=kirikEsik && stokluS.length>kirikEsik) continue; // kaynağı kırma
+              const perf = pdata.storePerformance[sk];
+              kaynakAday.push({sk,perf,satis:perf?perf.satis||0:0,
+                fazla:sizesS[beden]});
+            }
+            // Kaynak: bu üründe en AZ satışı olan + bedende fazlası olan
+            //   (iyi satan mağazadan ürün sökmeyelim — kullanıcı kuralı)
+            kaynakAday.sort((a,b)=>a.satis-b.satis||b.fazla-a.fazla);
+            if (kaynakAday.length>0) {
+              const kA = kaynakAday[0];
+              rmAddSource(pkey,kA.sk);
+              rmAddTarget(pkey,hk);
+              const guvenSeri = calculateGuvenEndeksi({
+                hedefSatis:(pdata.storePerformance[hk].satis)||0,
+                kaynakSatis:kA.satis,kaynakBeden_satis:0,
+                hedefBeden_stok:0,hedefBeden_satis:0,
+                bedenCurve:getBedenCurve(beden,hk),
+                hedefSTR:0,bekledigiGun:0,esik:0,
+                isDepoTransfer:false,isKirikBeden:true,
+                stokluBedenSayisi:stokluH.length,toplamBedenSayisi:toplamSize,
+                seriTamamlama:true,
+              });
+              result.kirikBeden.push({
+                gonderen:pdata.stores[kA.sk].meta,
+                hedef:pdata.storePerformance[hk].store,
+                urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
+                renk:pdata.meta.renk,renkKodu:pdata.meta.renkKodu,beden,adet:1,
+                transferTipi:'SERI_TAMAMLAMA',
+                toplamSize,stokluBedenler:stokluH.length,
+                bosBeden:toplamSize-stokluH.length,kirikEsik,
+                anaGrup:pdata.meta.anaGrup,altGrup:pdata.meta.altGrup,
+                malGrubu:pdata.meta.malGrubu,
+                sezonTipi:pdata.meta.isNewSeason?'YENI':'VIRMAN',
+                sezonDurum:pdata.meta.sezonDurum,takimDurumu:pdata.meta.takimDurumu,
+                guvenEndeksi:guvenSeri,confidence:guvenSeri,
+                neden:`🔗 Seri tamamlama (mağaza): ${kA.sk} → ${hk} — depo transferi sonrası ${hk} mağazasında kırık oluşmaması için eksik ${beden} bedeni gönderildi`,
+                seriTamamlama:true,
+              });
+              const vkS = kA.sk+'#'+pkey;
+              vs[vkS][beden]=Math.max(0,(vs[vkS][beden]||0)-1);
+              sizesH[beden]=(sizesH[beden]||0)+1;
+              seriDestekEk++; gonderildi=true;
+            }
+            if (!gonderildi) seriDestekKalan++;
+          }
+        }
+      }
+    }
+    result.stats.seriDestekEk = seriDestekEk;
+    result.stats.seriDestekKalan = seriDestekKalan;
+
     // ===== v8.4 — SON ÇELİŞKİ DENETİMİ (KESİN GARANTİ) =====
     // KURAL: Hiçbir mağaza aynı ürün+renk için aynı transfer çalışmasında
     //   hem KAYNAK hem HEDEF olamaz. Üst modüllerdeki rol kilidi (roleMap)
@@ -1570,6 +1858,31 @@ const ALGO = (function() {
         result.kirikBeden    = temizle(result.kirikBeden);
       }
       result.stats.cozulenCakisma = cozulenCakisma;
+    }
+
+    // ===== v8.13 — MÜKERRER TRANSFER DENETİMİ =====
+    // KURAL (kullanıcı talebi): Aynı ürün+renk+beden+kaynak+hedef ikilisi
+    //   birden fazla kez transfer listesinde olmamalı. Çok katmanlı
+    //   simülasyon turlarında nadiren aynı SKU iki kez yazılabilir; bu
+    //   tarama mükerrerleri tespit eder ve fazlasını çıktıdan SİLER.
+    {
+      let mukerrerSilinen = 0;
+      const dedup = list => {
+        const gorulen = new Set();
+        return list.filter(t => {
+          const src = (t.gonderen&&t.gonderen.key)||(t.kaynak&&t.kaynak.key)||'DEPO';
+          const tgt = (t.hedef&&t.hedef.key)||
+                      (t.distrib&&t.distrib[0]?t.distrib[0].store.key:'')||'';
+          const anahtar = `${t.urunKodu}|${t.renkKodu}|${t.beden}|${src}|${tgt}`;
+          if (gorulen.has(anahtar)) { mukerrerSilinen++; return false; }
+          gorulen.add(anahtar);
+          return true;
+        });
+      };
+      result.depoTransfers = dedup(result.depoTransfers);
+      result.magTransfers  = dedup(result.magTransfers);
+      result.kirikBeden    = dedup(result.kirikBeden);
+      result.stats.mukerrerSilinen = mukerrerSilinen;
     }
 
     // ===== ENVANTER ÖZETİ (UI uyumlu — tüm field'lar) =====
@@ -1678,10 +1991,39 @@ const ALGO = (function() {
     var prefix = newSeasonPrefix ||
       (document.getElementById('newSeasonInput') ? document.getElementById('newSeasonInput').value : 'Y26') || 'Y26';
     
-    var r = analyze(raw, dataObj.takimMap || {}, { newSeasonPrefix: prefix });
+    // v8.12: birikmiş mağaza × kategori DNA'sını analize ver (varsa).
+    //   DATA.cachedDNA, sayfa açılışında IndexedDB'den yüklenir.
+    var storedDNA = (dataObj.cachedDNA && typeof dataObj.cachedDNA === 'object')
+      ? dataObj.cachedDNA : null;
+    
+    // v8.13: kullanıcının seçtiği transfer modu (depo / mağaza+kırık)
+    var trfMode = { depo: true, magaza: true };
+    try {
+      if (typeof UI !== 'undefined' && UI.getTransferMode) trfMode = UI.getTransferMode();
+    } catch (e) { /* varsayılan tam analiz */ }
+    
+    // v8.13: kullanıcının girdiği sezon başlangıç tarihi (analiz bunu bilir)
+    var seasonStart = null;
+    try {
+      var ssEl = document.getElementById('seasonStartInput');
+      if (ssEl && ssEl.value) seasonStart = ssEl.value;
+    } catch (e) {}
+    
+    var r = analyze(raw, dataObj.takimMap || {}, {
+      newSeasonPrefix: prefix, storedDNA: storedDNA, transferMode: trfMode,
+      seasonStart: seasonStart,
+    });
     
     dataObj.lastAnalysis = r;
     dataObj.lastAnalysisDate = new Date();
+    
+    // v8.12: güncellenmiş DNA'yı kalıcı sakla (veri geldikçe zenginleşir).
+    if (r.stats && r.stats.categoryDNA) {
+      dataObj.cachedDNA = r.stats.categoryDNA;
+      if (typeof dataObj.saveDNA === 'function') {
+        dataObj.saveDNA(r.stats.categoryDNA);   // async — arka planda yazar
+      }
+    }
     
     console.log('runAnalysis: analiz bitti, depo=' + r.depoTransfers.length + ' mag=' + r.magTransfers.length);
     return r;
@@ -1695,7 +2037,7 @@ const ALGO = (function() {
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.11',
+    VERSION:'v8.14',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();

@@ -295,11 +295,70 @@ const UI = (function() {
     } catch (e) { /* skip */ }
   }
   
+  // ========== TRANSFER MODU (v8.13) ==========
+  // İki kutucuk: "Sadece Depodan" + "Mağaza Arası + Kırık".
+  //   - İkisi de seçili → depo + mağaza + kırık (tam analiz)
+  //   - Sadece depo → yalnızca depodan beden tamamlama
+  //   - Sadece mağaza → mağaza arası + kırık (depo atlanır)
+  function updateTransferMode() {
+    const cd = $('chkDepo'), cm = $('chkMag');
+    if (!cd || !cm) return;
+    if (!cd.checked && !cm.checked) cd.checked = true;  // en az biri açık
+    const ld = $('lblDepo'), lm = $('lblMag');
+    if (ld) ld.classList.toggle('on', cd.checked);
+    if (lm) lm.classList.toggle('on', cm.checked);
+  }
+  
+  function getTransferMode() {
+    const cd = $('chkDepo'), cm = $('chkMag');
+    return { depo: cd ? cd.checked : true, magaza: cm ? cm.checked : true };
+  }
+  
+  // ========== SEZON BAŞLANGIÇ TARİHİ (v8.13) ==========
+  // Kullanıcı her sezon için başlangıç tarihini girer (Y26 → 16.02.2026,
+  //   K27 → 31.08.2026 gibi). Sezon kodu↔tarih eşlemesi kalıcı saklanır.
+  async function saveSeasonStart() {
+    const kod = ($('newSeasonInput') ? $('newSeasonInput').value : 'Y26').toUpperCase().trim() || 'Y26';
+    const tarih = $('seasonStartInput') ? $('seasonStartInput').value : '';
+    if (!tarih) return;
+    // Etiketi güncelle
+    const lbl = $('seasonStartLabel');
+    if (lbl) {
+      const d = new Date(tarih);
+      lbl.textContent = isNaN(d) ? tarih : d.toLocaleDateString('tr');
+    }
+    // Kalıcı sakla: { sezonKodu: ISOtarih }
+    try {
+      let harita = await DATA.dbGet('settings', 'seasonStarts');
+      if (!harita || typeof harita !== 'object') harita = {};
+      harita[kod] = tarih;
+      await DATA.dbPut('settings', harita, 'seasonStarts');
+      console.log('Sezon başlangıcı kaydedildi:', kod, '→', tarih);
+    } catch (e) { console.warn('Sezon tarihi kaydedilemedi:', e); }
+  }
+  
+  // Sayfa açılışında kayıtlı sezon tarihini yükle
+  async function loadSeasonStart() {
+    try {
+      const harita = await DATA.dbGet('settings', 'seasonStarts');
+      if (!harita) return;
+      const kod = ($('newSeasonInput') ? $('newSeasonInput').value : 'Y26').toUpperCase().trim() || 'Y26';
+      if (harita[kod] && $('seasonStartInput')) {
+        $('seasonStartInput').value = harita[kod];
+        const lbl = $('seasonStartLabel');
+        if (lbl) {
+          const d = new Date(harita[kod]);
+          lbl.textContent = isNaN(d) ? harita[kod] : d.toLocaleDateString('tr');
+        }
+      }
+    } catch (e) { /* ilk kez */ }
+  }
+  
   // ========== TAB SWITCH ==========
   
   function switchTab(tab) {
     currentTab = tab;
-    const tabs = ['all', 'bek', 'hata', 'env', 'perf'];
+    const tabs = ['all', 'bek', 'hata', 'env', 'dna', 'perf'];
     document.querySelectorAll('.tab').forEach((el, i) => {
       el.classList.toggle('active', tabs[i] === tab);
     });
@@ -311,6 +370,7 @@ const UI = (function() {
     if (tab === 'bek') renderBek();
     if (tab === 'hata') renderHata();
     if (tab === 'env') renderEnv();
+    if (tab === 'dna') renderDna();
   }
   
   // ========== LOADING ==========
@@ -774,7 +834,52 @@ const UI = (function() {
     }
   }
   
-  // ========== PAGINATION ==========
+  // ========== MAĞAZA × KATEGORİ DNA ==========
+  
+  function renderDna() {
+    if (!DATA.lastAnalysis || !DATA.lastAnalysis.stats) return;
+    const dna = DATA.lastAnalysis.stats.categoryDNA;
+    const head = $('dnaHead');
+    const tb = $('tbDna');
+    if (!dna || Object.keys(dna).length === 0) {
+      tb.innerHTML = '<tr><td style="padding:20px;color:var(--mt)">DNA verisi yok — bir analiz çalıştırın.</td></tr>';
+      return;
+    }
+    // Mağaza listesini topla (DNA'da geçen tüm mağazalar)
+    const stores = [];
+    const seen = new Set();
+    for (const ag of Object.keys(dna)) {
+      for (const sk of Object.keys(dna[ag])) {
+        if (!seen.has(sk)) { seen.add(sk); stores.push(sk); }
+      }
+    }
+    // ALGO.STORES sırasına göre düzenle (rank)
+    const ordered = (typeof ALGO !== 'undefined' && ALGO.STORES)
+      ? ALGO.STORES.filter(s => seen.has(s.key))
+      : stores.map(k => ({ key: k, label: k }));
+    
+    // Başlık
+    head.innerHTML = '<th>KATEGORİ (ANA GRUP)</th>' +
+      ordered.map(s => `<th style="text-align:center">${s.label}</th>`).join('');
+    
+    // Satırlar — kategori bazında
+    const cats = Object.keys(dna).sort();
+    tb.innerHTML = cats.map(ag => {
+      const cells = ordered.map(s => {
+        const d = dna[ag][s.key];
+        if (!d) return '<td style="text-align:center;color:#cbd5e1">—</td>';
+        const v = d.dna;
+        // Renk: güçlü=yeşil, ortalama=nötr, zayıf=kırmızı
+        let bg = '#f1f5f9', col = '#475569';
+        if (v >= 1.25) { bg = '#d1fae5'; col = '#065f46'; }
+        else if (v >= 1.05) { bg = '#ecfdf5'; col = '#047857'; }
+        else if (v <= 0.75) { bg = '#fee2e2'; col = '#991b1b'; }
+        else if (v <= 0.95) { bg = '#fef3c7'; col = '#92400e'; }
+        return `<td style="text-align:center;background:${bg};color:${col};font-weight:700;font-family:var(--fm)">${v.toFixed(2)}<br><span style="font-size:8px;font-weight:400">%${d.pay} pay</span></td>`;
+      }).join('');
+      return `<tr><td style="font-weight:700">${ag}</td>${cells}</tr>`;
+    }).join('');
+  }
   
   function renderPagination(tab, total) {
     const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -822,11 +927,16 @@ const UI = (function() {
     applyFilters,
     resetFilters,
     saveCurrentAnalysis,
+    updateTransferMode,
+    getTransferMode,
+    saveSeasonStart,
+    loadSeasonStart,
     getVisibleRows: getFilteredAll,
     renderAll,
     renderBek,
     renderHata,
     renderEnv,
+    renderDna,
     gotoPage,
   };
 })();

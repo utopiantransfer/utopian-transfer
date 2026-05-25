@@ -31,6 +31,10 @@
       if (HISTORY.renderDashboardList) await HISTORY.renderDashboardList();
       if (HISTORY.renderMainList) await HISTORY.renderMainList();
       
+      // 3b. v8.13: Sezon başlangıç tarihi + transfer modu
+      if (UI.loadSeasonStart) await UI.loadSeasonStart();
+      if (UI.updateTransferMode) UI.updateTransferMode();
+      
       // 4. SÜRÜKLE-BIRAK bağlama (inline onclick yerine güvenli yöntem)
       setupDragDrop();
       

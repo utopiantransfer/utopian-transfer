@@ -13,12 +13,13 @@ const DATA = (function() {
     irsaliyeData: [],
     lastAnalysis: null,
     lastAnalysisDate: null,
+    cachedDNA: null,   // v8.12: birikmiş mağaza × kategori DNA (IndexedDB'den yüklenir)
   };
 
   // ========== INDEXEDDB ==========
   
   const DB_NAME = 'utopian_transfer_v8';
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   let db = null;
 
   function openDB() {
@@ -32,6 +33,8 @@ const DATA = (function() {
         if (!d.objectStoreNames.contains('images')) d.createObjectStore('images');
         // v2: fotoğraf meta verisi — hangi SKU'lar kayıtlı, son güncelleme tarihi
         if (!d.objectStoreNames.contains('imageMeta')) d.createObjectStore('imageMeta');
+        // v8.12: mağaza × kategori DNA — analizler arası kalıcı, veri geldikçe güncellenir
+        if (!d.objectStoreNames.contains('categoryDNA')) d.createObjectStore('categoryDNA');
       };
       req.onsuccess = (e) => { db = e.target.result; resolve(db); };
       req.onerror = (e) => reject(e);
@@ -566,9 +569,30 @@ const DATA = (function() {
 
   // ========== INIT ==========
   
+  // ========== v8.12 — MAĞAZA × KATEGORİ DNA KALICILIĞI ==========
+  // DNA tablosu IndexedDB'de saklanır; her veri yüklemesinde güncellenir.
+  // Sayfa açılışında belleğe (state.cachedDNA) yüklenir, analiz buna katar.
+  async function saveDNA(dna) {
+    try {
+      await dbPut('categoryDNA', dna, 'current');
+      await dbPut('categoryDNA', new Date().toISOString(), 'lastUpdate');
+      state.cachedDNA = dna;
+    } catch (e) { console.warn('DNA kaydedilemedi:', e); }
+  }
+  async function loadDNA() {
+    try {
+      const dna = await dbGet('categoryDNA', 'current');
+      if (dna && typeof dna === 'object') {
+        state.cachedDNA = dna;
+        console.log('Mağaza × kategori DNA belleğe yüklendi.');
+      }
+    } catch (e) { /* ilk kez — DNA yok */ }
+  }
+  
   async function init() {
     await openDB();
     await loadTakimFromCache();
+    await loadDNA();
   }
 
   // ========== PUBLIC API ==========
@@ -579,6 +603,10 @@ const DATA = (function() {
     get lastAnalysis() { return state.lastAnalysis; },
     set lastAnalysis(v) { state.lastAnalysis = v; },
     set lastAnalysisDate(v) { state.lastAnalysisDate = v; },
+    get cachedDNA() { return state.cachedDNA; },
+    set cachedDNA(v) { state.cachedDNA = v; },
+    saveDNA,
+    loadDNA,
     
     init,
     openDB,
