@@ -554,6 +554,27 @@ const UI = (function() {
   // Geriye dönük uyumluluk (init.js / başka yerden çağrılırsa)
   function applyFilters() { applyColFilters(); }
   
+  // ========== ÇALIŞMAYI KAYDET (v8.11) ==========
+  // Mevcut analizi geçmişe (IndexedDB) kaydeder. Sayfa yenilense bile
+  //   kayıt kalır; "Önceki Transfer Çalışmaları" listesinden çift
+  //   tıklayarak geri açılabilir, Excel'i yeniden indirilebilir.
+  async function saveCurrentAnalysis() {
+    if (!DATA.lastAnalysis) {
+      alert('Kaydedilecek bir analiz yok. Önce transfer analizi çalıştırın.');
+      return;
+    }
+    try {
+      const ok = await HISTORY.saveCurrent(DATA.lastAnalysis);
+      if (ok) {
+        alert('✅ Transfer çalışması kaydedildi.\n\n"Önceki Transfer Çalışmaları" listesinde görebilir,\nüzerine çift tıklayarak tekrar açabilirsiniz.');
+      } else {
+        alert('Kayıt sırasında bir sorun oluştu. F12 → Console kontrol edin.');
+      }
+    } catch (e) {
+      alert('Kayıt hatası: ' + e.message);
+    }
+  }
+  
   // ========== RENDER YARDIMCI ==========
   
   function categoryBadge(c) {
@@ -800,6 +821,7 @@ const UI = (function() {
     applyColFilters,
     applyFilters,
     resetFilters,
+    saveCurrentAnalysis,
     getVisibleRows: getFilteredAll,
     renderAll,
     renderBek,

@@ -1,7 +1,17 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.10 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.11 — ALGORİTMA MODÜLÜ
 //
-// v8.10 GELİŞTİRMELERİ:
+// v8.11 GELİŞTİRMELERİ:
+//  28. ÇALIŞMAYI KAYDET — Analiz sonucu artık "Çalışmayı Kaydet" butonuyla
+//      geçmişe (IndexedDB) TAM olarak saklanır. Sayfa yenilense bile kalır;
+//      "Önceki Transfer Çalışmaları" listesinde tarihiyle görünür, çift
+//      tıklamayla tüm transfer verisi + Excel geri yüklenir.
+//  29. ÜÇÜNCÜ-TUR KIRIK DENETİMİ — İkinci-tur simülasyonun ardından üçüncü
+//      bir güvenlik taraması: ikinci turun kendi transferlerinin yarattığı
+//      zincir kırıkları veya gözden kaçan kırıkları yakalar. Çözülemeyenler
+//      "üçüncü-tur onayı" ile elde kalan (iade/showroom adayı) işaretlenir.
+//      Çift kayıt önleme: aynı SKU bekleyene iki kez yazılmaz.
+//
 //  26. FOTOĞRAF YÖNETİMİ — Klasör seçimi tek akışta: tüm ürün klasörleri
 //      taranır, SADECE bellekte olmayan fotoğraflar IndexedDB'ye kaydedilir
 //      (artımlı). Çift-tık kilidi ("picker already active" hatası giderildi).
@@ -1381,6 +1391,132 @@ const ALGO = (function() {
       }
       result.stats.ikinciTurEk=ikinciTurEk;
       result.stats.ikinciTurBekleyen=ikinciTurBekleyen;
+
+      // ============================================================
+      // v8.11 — ÜÇÜNCÜ-TUR KIRIK DENETİMİ (son güvenlik taraması)
+      // ============================================================
+      // İkinci-tur kendi transferlerini de vstok'a uyguladı; ancak ikinci
+      // turun KENDİ transferleri yeni bir kırık yaratmış olabilir (zincir
+      // etki) ya da gözden kaçan bir kırık kalmış olabilir. Üçüncü tur,
+      // güncel vstok üzerinden bir tarama daha yapar:
+      //   - Çözülebilen yeni kırık → ek transfer.
+      //   - Çözülemeyen → 'bekleyen' listesine (denetim için).
+      // Üçüncü turda da çözülemeyen kırıklar stats.ucuncuTurKalan ile
+      // raporlanır; bunlar gerçekten elde kalan, hiçbir mağazaya
+      // gönderilemeyen kırıklardır (iade/showroom adayı).
+      let ucuncuTurEk=0, ucuncuTurKalan=0;
+      for (const pkey of Object.keys(productMap)) {
+        const pdata = productMap[pkey];
+        const tumB = new Set();
+        for (const sd of Object.values(pdata.stores))
+          for (const b of Object.keys(sd.sizes)) if (norm(b)!=='STD') tumB.add(b);
+        const toplamSize = tumB.size;
+        const kirikEsik = getKirikThreshold(toplamSize);
+        if (kirikEsik===0) continue;
+        const prodKey = pdata.meta.urunKodu+'|'+pdata.meta.renkKodu;
+
+        // güncel (2. tur sonrası) sanal stok durumu
+        const postStore = {};
+        for (const sk of Object.keys(pdata.stores)) {
+          const vk = sk+'#'+prodKey;
+          const sizes = vstok[vk]||{};
+          const stoklu = Object.keys(sizes).filter(b=>sizes[b]>0);
+          postStore[sk] = { stoklu, sizes };
+        }
+        const postKirik = Object.entries(postStore)
+          .filter(([sk,v])=>v.stoklu.length>0 && v.stoklu.length<=kirikEsik);
+        if (postKirik.length===0) continue;
+
+        for (const [sk,v] of postKirik) {
+          // 2. turda HEDEF olmuş mağazanın stoğu sökülmez (karar korunur)
+          if ((oncekiRol[prodKey]||{})[sk]==='hedef') continue;
+          for (const beden of v.stoklu) {
+            const qty = v.sizes[beden]||0;
+            if (qty<=0) continue;
+            const aday = Object.entries(pdata.storePerformance)
+              .filter(([k,p])=>{
+                if (k===sk) return false;
+                const pv = postStore[k];
+                if (pv && pv.stoklu.length>0 && pv.stoklu.length<=kirikEsik) return false;
+                if ((oncekiRol[prodKey]||{})[k]==='kaynak') return false;
+                if (!canBeTarget(prodKey,k)) return false;
+                return true;
+              })
+              .map(([k,p])=>({k,p,sc:scoreSizeTarget(p,beden)}))
+              .sort((a,b)=>b.sc-a.sc||(b.p.satis||0)-(a.p.satis||0)||a.p.store.rank-b.p.store.rank);
+
+            if (aday.length===0 || aday[0].sc < -100) {
+              // Üçüncü turda da çözülemedi → gerçekten elde kalan kırık.
+              // ÇİFT KAYIT ÖNLEME: ikinci-tur bu SKU'yu zaten bekleyene
+              //   yazdıysa tekrar ekleme; sadece nedenini güncelle.
+              const mevcut = result.bekleyen.find(x =>
+                x.urunKodu===pdata.meta.urunKodu &&
+                x.renkKodu===pdata.meta.renkKodu &&
+                String(x.beden)===String(beden) &&
+                x.kaynak && x.kaynak.label===pdata.stores[sk].meta.label);
+              if (mevcut) {
+                mevcut.neden='⚡⚡ Üçüncü-tur onayı: hiçbir turda çözülemeyen kırık — elde kalan, iade/showroom adayı';
+              } else {
+                result.bekleyen.push({
+                  kaynak:pdata.stores[sk].meta,
+                  urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
+                  renkKodu:pdata.meta.renkKodu,renk:pdata.meta.renk,beden,stok:qty,
+                  anaGrup:pdata.meta.anaGrup,altGrup:pdata.meta.altGrup,
+                  sezonTipi:pdata.meta.isNewSeason?'YENI':'VIRMAN',
+                  neden:'⚡⚡ Üçüncü-tur: hiçbir turda çözülemeyen kırık — elde kalan, iade/showroom adayı',
+                });
+              }
+              ucuncuTurKalan++;
+              continue;
+            }
+            const target = aday[0].p.store;
+            if (sk===target.key) continue;
+            rmAddSource(prodKey,sk);
+            rmAddTarget(prodKey,target.key);
+            markRol(prodKey,sk,'kaynak');
+            markRol(prodKey,target.key,'hedef');
+            applyTr(sk, target.key, pdata.meta.urunKodu, pdata.meta.renkKodu, beden, qty);
+            postStore[sk].sizes[beden]=0;
+            postStore[sk].stoklu=postStore[sk].stoklu.filter(b=>b!==beden);
+
+            const tHp = aday[0].p;
+            const tSize = tHp.sizes?tHp.sizes[beden]:null;
+            const tSTR = tHp&&(tHp.stok+tHp.satis>0)?Math.round(tHp.satis/(tHp.stok+tHp.satis)*100):0;
+            const guvenK_ = calculateGuvenEndeksi({
+              hedefSatis:tHp.satis||0,kaynakSatis:pdata.stores[sk].totalSatis,
+              kaynakBeden_satis:(pdata.stores[sk].sizes[beden]||{}).satis||0,
+              hedefBeden_stok:tSize?tSize.stok:0,hedefBeden_satis:tSize?tSize.satis:0,
+              bedenCurve:getBedenCurve(beden,target.key),
+              hedefSTR:tSTR,bekledigiGun:0,esik:0,
+              isDepoTransfer:false,isKirikBeden:true,
+              stokluBedenSayisi:v.stoklu.length,toplamBedenSayisi:toplamSize,
+              seriTamamlama:(!tSize||(tSize.stok||0)===0),
+            });
+            result.kirikBeden.push({
+              gonderen:pdata.stores[sk].meta,hedef:target,
+              urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
+              renk:pdata.meta.renk,renkKodu:pdata.meta.renkKodu,
+              beden,adet:qty,
+              transferTipi: qty>=3 ? 'FAZLA_STOK' : 'KIRIK',
+              toplamSize,stokluBedenler:v.stoklu.length,
+              bosBeden:toplamSize-v.stoklu.length,kirikEsik,
+              altGrup:pdata.meta.altGrup,anaGrup:pdata.meta.anaGrup,
+              malGrubu:pdata.meta.malGrubu,sezonTipi:pdata.meta.isNewSeason?'YENI':'VIRMAN',
+              sezonDurum:pdata.meta.sezonDurum,takimDurumu:pdata.meta.takimDurumu,
+              takimKod:pdata.meta.takimKod,
+              velocityScore:Math.round((tHp.velocityScore||0)*100),
+              guvenEndeksi:guvenK_,confidence:guvenK_,
+              neden:`⚡⚡ Üçüncü-tur kırık: ${pdata.stores[sk].meta.label} → ${target.label} [beden ${beden}] (Güven %${guvenK_})`,
+              postTransfer:true,ikinciTur:true,ucuncuTur:true,
+            });
+            result.stats.kirikCount++;
+            result.stats.transferableCount++;
+            ucuncuTurEk++;
+          }
+        }
+      }
+      result.stats.ucuncuTurEk=ucuncuTurEk;
+      result.stats.ucuncuTurKalan=ucuncuTurKalan;
     }
 
     // ===== v8.4 — SON ÇELİŞKİ DENETİMİ (KESİN GARANTİ) =====
@@ -1559,7 +1695,7 @@ const ALGO = (function() {
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.10',
+    VERSION:'v8.11',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();

@@ -26,13 +26,13 @@ const HISTORY = (function() {
   // ========== KAYDET ==========
   
   async function saveCurrent(analysis) {
-    if (!analysis) return;
+    if (!analysis) return false;
     
     const date = new Date();
     const id = 'transfer_' + date.getTime();
     const name = generateName(date);
     
-    // Sadece özet bilgileri sakla (büyük olmaması için)
+    // Özet bilgileri (liste görünümü için)
     const summary = {
       id,
       name,
@@ -46,8 +46,7 @@ const HISTORY = (function() {
         bekleyen: analysis.bekleyen.length,
         hataliTarih: analysis.hataliTarih.length,
       },
-      // Mağaza dağılımı
-      storeDistribution: analysis.envanterOzet.map(e => ({
+      storeDistribution: (analysis.envanterOzet || []).map(e => ({
         store: e.store.label,
         rank: e.store.rank,
         depoGelen: e.depoGelen,
@@ -55,22 +54,32 @@ const HISTORY = (function() {
         giden: e.giden,
         net: e.net,
       })),
-      // Virman ürün takibi (sonraki transferde kullanılacak)
       virmanProducts: extractVirmanProducts(analysis),
-      // v8.8 ÖNERİ 7 — TRANSFER BAŞARI GERİ BESLEMESİ:
-      //   Bu çalışmada transfer edilen her SKU (ürün+renk+beden+hedef) ve
-      //   o anki hedef stoğu saklanır. Sonraki çalışma, aynı SKU'nun stoğu
-      //   azaldıysa "transfer başarılı (ürün satıldı)" sonucunu çıkarır.
       transferredSkus: extractTransferredSkus(analysis),
+      // v8.11: TAM SONUÇ — çift tıklandığında transfer verisi geri yüklenir.
+      //   UI ve Excel'in ihtiyaç duyduğu tüm transfer dizileri saklanır.
+      fullResult: {
+        depoTransfers: analysis.depoTransfers,
+        magTransfers: analysis.magTransfers,
+        kirikBeden: analysis.kirikBeden,
+        bekleyen: analysis.bekleyen,
+        hataliTarih: analysis.hataliTarih,
+        yolda: analysis.yolda || [],
+        envanter: analysis.envanter || [],
+        envanterOzet: analysis.envanterOzet || [],
+        stats: analysis.stats,
+      },
     };
     
     try {
       await DATA.dbPut('history', summary);
-      console.log('Transfer kaydı:', name);
+      console.log('Transfer kaydedildi:', name);
       renderDashboardList();
       renderMainList();
+      return true;
     } catch (e) {
       console.error('Kayıt hatası:', e);
+      return false;
     }
   }
   
@@ -201,22 +210,59 @@ const HISTORY = (function() {
     if (!el) return;
     
     if (sorted.length === 0) {
-      el.innerHTML = '<span class="muted">Henüz kayıt yok. İlk transferinizi yapın!</span>';
+      el.innerHTML = '<span class="muted">Henüz kayıt yok. Bir analiz yapıp "💾 Çalışmayı Kaydet" deyin.</span>';
       return;
     }
     
     el.innerHTML = sorted.map(h => {
       const d = new Date(h.date);
       const total = h.counts.depoTransfer + h.counts.magTransfer;
-      return `<div class="hist-row">
-        <div class="name">${h.name}</div>
-        <div class="meta">${total} transfer • ${h.counts.kirikBeden} kırık • ${h.counts.bekleyen} bekleyen</div>
+      const tarih = d.toLocaleDateString('tr') + ' ' + d.toLocaleTimeString('tr', {hour:'2-digit',minute:'2-digit'});
+      const acilabilir = h.fullResult ? 'true' : 'false';
+      return `<div class="hist-row" data-id="${h.id}" data-openable="${acilabilir}" ondblclick="HISTORY.openHistory('${h.id}')" style="cursor:pointer" title="Çift tıkla → bu transferi aç">
+        <div class="name">📅 ${tarih} — ${h.name}</div>
+        <div class="meta">${total} transfer • ${h.counts.kirikBeden} kırık • ${h.counts.bekleyen} bekleyen • güven %${h.stats ? h.stats.guvenOrtalama : '-'}</div>
         <div class="actions">
-          <button class="hist-action view" onclick="HISTORY.viewDetails('${h.id}')">👁 İncele</button>
-          <button class="hist-action del" onclick="HISTORY.deleteHistory('${h.id}')">🗑 Sil</button>
+          <button class="hist-action view" onclick="event.stopPropagation();HISTORY.openHistory('${h.id}')">📂 Aç</button>
+          <button class="hist-action del" onclick="event.stopPropagation();HISTORY.deleteHistory('${h.id}')">🗑 Sil</button>
         </div>
       </div>`;
     }).join('');
+  }
+  
+  // ========== KAYITLI TRANSFERİ AÇ (çift tık / Aç butonu) ==========
+  
+  async function openHistory(id) {
+    try {
+      const h = await DATA.dbGet('history', id);
+      if (!h) { alert('Kayıt bulunamadı'); return; }
+      if (!h.fullResult) {
+        alert('Bu eski kayıtta detaylı transfer verisi yok.\nYalnızca yeni (v8.11+) kayıtlar açılabilir.');
+        return;
+      }
+      // Tam sonucu UI'ın beklediği formata getir
+      const result = {
+        depoTransfers: h.fullResult.depoTransfers || [],
+        magTransfers: h.fullResult.magTransfers || [],
+        kirikBeden: h.fullResult.kirikBeden || [],
+        bekleyen: h.fullResult.bekleyen || [],
+        hataliTarih: h.fullResult.hataliTarih || [],
+        yolda: h.fullResult.yolda || [],
+        envanter: h.fullResult.envanter || [],
+        envanterOzet: h.fullResult.envanterOzet || [],
+        stats: h.fullResult.stats || h.stats || {},
+      };
+      // DATA.lastAnalysis'i güncelle — Excel indirme de bu kaydı kullanır
+      DATA.lastAnalysis = result;
+      if (DATA.state) DATA.state.lastAnalysis = result;
+      // Ekrana bas
+      UI.showResults(result);
+      window.scrollTo(0, 0);
+      console.log('Kayıtlı transfer açıldı:', h.name);
+    } catch (e) {
+      alert('Kayıt açma hatası: ' + e.message);
+      console.error(e);
+    }
   }
   
   // ========== DETAY GÖSTER ==========
@@ -336,6 +382,7 @@ const HISTORY = (function() {
     saveCurrent,
     getAll,
     viewDetails,
+    openHistory,
     deleteHistory,
     renderDashboardList,
     renderMainList,
