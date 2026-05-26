@@ -554,7 +554,7 @@ const UI = (function() {
       const col = el.getAttribute('data-col');
       if (col === 'guven') return; // sabit aralık seçenekleri
       if (col === 'takim') { fillSelect(el, ['Takım', 'Tek']); return; }
-      if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Fazla Stok', 'Seri Tamamlama']); return; }
+      if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Seri Tamamlama']); return; }
       if (col === 'sezon') { fillSelect(el, ['YENI', 'VIRMAN']); return; }
       fillSelect(el, allRows.map(row => {
         if (col === 'takim') return row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';

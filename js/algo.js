@@ -1,5 +1,5 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.15 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.16 — ALGORİTMA MODÜLÜ
 //
 // v8.15 DÜZELTMESİ (kullanıcı geri bildirimi — transfer modu görünümü):
 //  36. SERİ TAMAMLAMA AYRI TÜR — Sadece-depo modunda devreye giren seri
@@ -1892,6 +1892,18 @@ const ALGO = (function() {
       result.stats.mukerrerSilinen = mukerrerSilinen;
     }
 
+    // ===== v8.16 — FAZLA STOK KAYITLARINI TÜM RAPORLARDAN ÇIKAR =====
+    // KURAL (kullanıcı talebi): "Fazla stok" dağılımı hiçbir raporda
+    //   görünmesin. Bir bedende 3+ adet (FAZLA_STOK) transferleri çıktıdan
+    //   tamamen kaldırılır; yalnızca gerçek kırık + seri tamamlama kalır.
+    {
+      const oncesi = result.kirikBeden.length;
+      result.kirikBeden = result.kirikBeden.filter(k => k.transferTipi !== 'FAZLA_STOK');
+      result.depoTransfers = result.depoTransfers.filter(t => t.transferTipi !== 'FAZLA_STOK');
+      result.magTransfers = result.magTransfers.filter(t => t.transferTipi !== 'FAZLA_STOK');
+      result.stats.fazlaStokCikarilan = oncesi - result.kirikBeden.length;
+    }
+
     // ===== ENVANTER ÖZETİ (UI uyumlu — tüm field'lar) =====
     const magGelenMap_={}, depoGelenMap_={}, gidenMap_={}, eksikBedenMap_={};
     
@@ -2044,7 +2056,7 @@ const ALGO = (function() {
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.15',
+    VERSION:'v8.16',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();

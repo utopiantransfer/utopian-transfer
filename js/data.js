@@ -364,178 +364,80 @@ const DATA = (function() {
       XLSX.utils.book_append_sheet(wb, ws0, 'Kontrol Listesi');
     }
     
-    // ===== SAYFA 2: DEPO TRANSFER (detay) =====
-    const depoData = a.depoTransfers;
-    const d1 = sortByName(depoData).map(t => ({
-      'GÖNDERİCİ DEPO': t.gonderici ? t.gonderici.label.toUpperCase() : 'MERKEZ DEPO',
-      'Sezon': t.sezonTipi,
-      'Sezon Durum': t.sezonDurum || '',
-      'Ana Grup': t.anaGrup || '',
-      'Alt Grup': t.altGrup || '',
-      'Ürün Adı': t.urunAdi,
-      'Ürün Kodu': t.urunKodu,
-      'Renk': t.renk,
-      'Beden': t.beden,
-      'Stok': t.depoStok,
-      'Takım': t.takimDurumu || '',
-      'Güven %': t.guvenEndeksi || t.confidence || '',
-      'Neden': t.neden,
-      'Adet': t.adet,
-      'HEDEF MAĞAZA': t.distrib && t.distrib[0] ? t.distrib[0].store.label.toUpperCase() : '',
-    }));
-    const ws1 = XLSX.utils.json_to_sheet(d1);
-    setColWidths(ws1, [18, 8, 12, 14, 16, 24, 22, 14, 8, 8, 12, 9, 40, 18]);
-    XLSX.utils.book_append_sheet(wb, ws1, 'Depo Transfer');
-    
-    // ===== SAYFA 3: MAĞAZA ARASI (detay) =====
-    const magData = a.magTransfers;
-    const d2 = sortByName(magData).map(t => ({
-      'GÖNDERİCİ MAĞAZA': t.gonderen.label.toUpperCase(),
-      'Sezon': t.sezonTipi,
-      'Sezon Durum': t.sezonDurum || '',
-      'Ana Grup': t.anaGrup || '',
-      'Alt Grup': t.altGrup || '',
-      'Ürün Adı': t.urunAdi,
-      'Ürün Kodu': t.urunKodu,
-      'Renk': t.renk,
-      'Beden': t.beden,
-      'Gün': t.days || '',
-      'Takım': t.takimDurumu || '',
-      'Güven %': t.guvenEndeksi || t.confidence || '',
-      'Neden': t.neden,
-      'Adet': t.adet,
-      'HEDEF MAĞAZA': t.hedef.label.toUpperCase(),
-    }));
-    const ws2 = XLSX.utils.json_to_sheet(d2);
-    setColWidths(ws2, [18, 8, 12, 14, 16, 24, 22, 14, 8, 6, 6, 12, 9, 40, 18]);
-    XLSX.utils.book_append_sheet(wb, ws2, 'Mağaza Arası');
-    
-    // ===== SAYFA 4: KIRIK BEDEN (detay) =====
-    if (a.kirikBeden.length) {
-      const d3 = sortByName(a.kirikBeden).map(t => ({
-        'GÖNDERİCİ MAĞAZA': t.gonderen.label.toUpperCase(),
-        'Sezon': t.sezonTipi,
-        'Sezon Durum': t.sezonDurum || '',
-        'Ana Grup': t.anaGrup || '',
-        'Alt Grup': t.altGrup || '',
-        'Ürün Adı': t.urunAdi,
-        'Ürün Kodu': t.urunKodu,
-        'Renk': t.renk,
-        'Kalan Beden': t.beden,
-        'Adet': t.adet,
-        'Stoklu/Toplam': (t.stokluBedenler || 1) + '/' + (t.toplamSize || '?'),
-        'Takım': t.takimDurumu || '',
-        'Güven %': t.guvenEndeksi || t.confidence || '',
-        'Neden': t.neden,
-        'HEDEF MAĞAZA': t.hedef.label.toUpperCase(),
-      }));
-      const ws3 = XLSX.utils.json_to_sheet(d3);
-      setColWidths(ws3, [18, 8, 12, 14, 16, 24, 22, 14, 12, 6, 12, 12, 9, 40, 18]);
-      XLSX.utils.book_append_sheet(wb, ws3, 'Kırık Beden');
-    }
-    
-    // ===== SAYFA: YENİ GİRİŞ / YOLDA =====
-    // MagazayaGirisTarihi = 1.1.1900 → ürün yolda/nakilde, transfere alınmadı.
-    const yoldaListe = a.yolda || a.hataliTarih || [];
-    if (yoldaListe.length) {
-      const dH = sortByName(yoldaListe).map(h => ({
-        'Mağaza': h.store ? h.store.label : '',
-        'Ürün Adı': h.urunAdi,
-        'Ürün Kodu': h.urunKodu,
-        'Renk': h.renk,
-        'Beden': h.beden,
-        'Mağaza Giriş Tarihi': h.magazaGiris ? new Date(h.magazaGiris).toLocaleDateString('tr') : '1.1.1900',
-        'Stok': h.stok,
-        'Satış': h.satis || 0,
-        'Durum': 'YOLDA — mağaza henüz fiziksel teslim almadı',
-      }));
-      const wsY = XLSX.utils.json_to_sheet(dH);
-      setColWidths(wsY, [18, 24, 22, 14, 8, 18, 7, 7, 42]);
-      XLSX.utils.book_append_sheet(wb, wsY, 'Yeni Giriş - Yolda');
-    }
-    
-    // ===== SAYFA 5: DEPODA BEKLEYEN ÜRÜN =====
-    if (a.bekleyen.length) {
-      // Ürün+renk bazında grupla — beden sayısı, toplam adet, bedenler
-      const grupMap = {};
-      for (const b of a.bekleyen) {
-        const key = b.urunKodu + '|' + (b.renkKodu || b.renk);
-        if (!grupMap[key]) {
-          grupMap[key] = {
+    // ===== SAYFA 2: MAĞAZALARA DAĞITIMI YAPILMAMIŞ ÜRÜNLER =====
+    // Depoda olup hiçbir mağazaya gönderilmemiş ürünler (kaynak = DEPO).
+    {
+      const depoBekleyen = (a.bekleyen || []).filter(b => {
+        const lbl = (b.kaynak && b.kaynak.label) ? String(b.kaynak.label).toUpperCase() : '';
+        return lbl.includes('DEPO') || lbl.includes('MERKEZ') || lbl.includes('SHOWROOM');
+      });
+      if (depoBekleyen.length) {
+        const grup = {};
+        for (const b of depoBekleyen) {
+          const key = b.urunKodu + '|' + (b.renkKodu || b.renk);
+          if (!grup[key]) grup[key] = {
             urunAdi: b.urunAdi, urunKodu: b.urunKodu, renk: b.renk,
             anaGrup: b.anaGrup || '', altGrup: b.altGrup || '',
             sezonTipi: b.sezonTipi, bedenler: [], toplamAdet: 0,
           };
+          grup[key].bedenler.push(b.beden);
+          grup[key].toplamAdet += (b.stok || 0);
         }
-        grupMap[key].bedenler.push(b.beden);
-        grupMap[key].toplamAdet += (b.stok || 0);
-      }
-      const dB = sortByName(Object.values(grupMap)).map(g => ({
-        'Sezon': g.sezonTipi,
-        'Ana Grup': g.anaGrup,
-        'Alt Grup': g.altGrup,
-        'Ürün Adı': g.urunAdi,
-        'Ürün Kodu': g.urunKodu,
-        'Renk': g.renk,
-        'Beden Sayısı': g.bedenler.length,
-        'Toplam Envanter': g.toplamAdet,
-        'Bedenler': g.bedenler.join(' - '),
-      }));
-      const wsB = XLSX.utils.json_to_sheet(dB);
-      setColWidths(wsB, [8, 14, 16, 24, 22, 14, 12, 14, 24]);
-      XLSX.utils.book_append_sheet(wb, wsB, 'Depoda Bekleyen Ürün');
-    }
-    
-    // ===== SAYFA 6+: HER MAĞAZA İÇİN GÖNDERECEĞİ TRANSFER LİSTESİ =====
-    // Mağaza→Mağaza (gönderen) + Kırık Beden (gönderen) birlikte
-    for (const store of ALGO.STORES) {
-      // Bu mağazanın göndereceği mağaza→mağaza transferleri
-      const magGonderi = a.magTransfers
-        .filter(t => t.gonderen.key === store.key)
-        .map(t => ({
-          'Transfer Tipi': 'Mağaza → Mağaza',
-          'Sezon': t.sezonTipi,
-          'Ana Grup': t.anaGrup || '',
-          'Alt Grup': t.altGrup || '',
-          'Ürün Adı': t.urunAdi,
-          'Ürün Kodu': t.urunKodu,
-          'Renk': t.renk,
-          'Beden': t.beden,
-          'Adet': t.adet,
-          'Güven %': t.guvenEndeksi || t.confidence || '',
-          'Neden': t.neden,
-          'HEDEF MAĞAZA': t.hedef.label.toUpperCase(),
+        const d2 = sortByName(Object.values(grup)).map(g => ({
+          'Sezon': g.sezonTipi,
+          'Ana Grup': g.anaGrup,
+          'Alt Grup': g.altGrup,
+          'Ürün Adı': g.urunAdi,
+          'Ürün Kodu': g.urunKodu,
+          'Renk': g.renk,
+          'Beden Sayısı': g.bedenler.length,
+          'Toplam Envanter': g.toplamAdet,
+          'Bedenler': g.bedenler.join(' - '),
         }));
-      
-      // Bu mağazanın göndereceği kırık beden transferleri
-      const kirikGonderi = a.kirikBeden
-        .filter(t => t.gonderen.key === store.key)
-        .map(t => ({
-          'Transfer Tipi': 'Kırık Beden',
-          'Sezon': t.sezonTipi,
-          'Ana Grup': t.anaGrup || '',
-          'Alt Grup': t.altGrup || '',
-          'Ürün Adı': t.urunAdi,
-          'Ürün Kodu': t.urunKodu,
-          'Renk': t.renk,
-          'Beden': t.beden,
-          'Adet': t.adet,
-          'Güven %': t.guvenEndeksi || t.confidence || '',
-          'Neden': t.neden,
-          'HEDEF MAĞAZA': t.hedef.label.toUpperCase(),
-        }));
-      
-      // İkisini birleştir + ürün adına göre sırala
-      const tumGonderi = sortByName([...magGonderi, ...kirikGonderi]);
-      
-      if (tumGonderi.length) {
-        const wsS = XLSX.utils.json_to_sheet(tumGonderi);
-        setColWidths(wsS, [16, 8, 14, 16, 24, 22, 14, 8, 6, 9, 40, 18]);
-        // Sayfa adı: mağaza adı (max 31 karakter Excel limiti)
-        let sheetName = store.label.replace(/[\\\/\?\*\[\]:]/g, '').slice(0, 28);
-        XLSX.utils.book_append_sheet(wb, wsS, sheetName);
+        const ws2 = XLSX.utils.json_to_sheet(d2);
+        setColWidths(ws2, [8, 14, 16, 24, 22, 14, 12, 14, 24]);
+        XLSX.utils.book_append_sheet(wb, ws2, 'Magazalara Dagitilmayan');
       }
     }
+
+    // ===== SAYFA 3: DEPODA FAZLA BEKLEYEN ÜRÜNLER =====
+    // Mağazalarda stok varken depoda fazladan bekleyen ürünler
+    // (kaynak = DEPO olmayan, yani mağaza kaynaklı bekleyen kayıtlar).
+    {
+      const fazlaBekleyen = (a.bekleyen || []).filter(b => {
+        const lbl = (b.kaynak && b.kaynak.label) ? String(b.kaynak.label).toUpperCase() : '';
+        return !(lbl.includes('DEPO') || lbl.includes('MERKEZ') || lbl.includes('SHOWROOM'));
+      });
+      if (fazlaBekleyen.length) {
+        const grup = {};
+        for (const b of fazlaBekleyen) {
+          const key = b.urunKodu + '|' + (b.renkKodu || b.renk);
+          if (!grup[key]) grup[key] = {
+            urunAdi: b.urunAdi, urunKodu: b.urunKodu, renk: b.renk,
+            anaGrup: b.anaGrup || '', altGrup: b.altGrup || '',
+            sezonTipi: b.sezonTipi, kaynak: (b.kaynak && b.kaynak.label) || '',
+            bedenler: [], toplamAdet: 0,
+          };
+          grup[key].bedenler.push(b.beden);
+          grup[key].toplamAdet += (b.stok || 0);
+        }
+        const d3 = sortByName(Object.values(grup)).map(g => ({
+          'Sezon': g.sezonTipi,
+          'Ana Grup': g.anaGrup,
+          'Alt Grup': g.altGrup,
+          'Ürün Adı': g.urunAdi,
+          'Ürün Kodu': g.urunKodu,
+          'Renk': g.renk,
+          'Beden Sayısı': g.bedenler.length,
+          'Toplam Envanter': g.toplamAdet,
+          'Bedenler': g.bedenler.join(' - '),
+        }));
+        const ws3 = XLSX.utils.json_to_sheet(d3);
+        setColWidths(ws3, [8, 14, 16, 24, 22, 14, 12, 14, 24]);
+        XLSX.utils.book_append_sheet(wb, ws3, 'Depoda Fazla Bekleyen');
+      }
+    }
+
     
     const dateStr = new Date().toLocaleDateString('tr').replace(/\./g, '-');
     XLSX.writeFile(wb, 'UTOPIAN_Transfer_' + dateStr + '.xlsx');
