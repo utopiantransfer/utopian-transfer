@@ -1,4 +1,4 @@
-# UTOPIAN Transfer v8.14 — Yükleme ve Test
+# UTOPIAN Transfer v8.15 — Yükleme ve Test
 
 ## Klasör yapısı
 ```
@@ -9,38 +9,37 @@ js/ klasörüne:  algo.js, data.js, ui.js, init.js, history.js, perf.js
 ## Yükleme
 1. ZIP'teki 4 dosyayı KÖK dizine, `js` içindeki 6 dosyayı `js` klasörüne.
 2. 1-2 dk bekleyin, sitede Ctrl+F5.
-3. Başlıkta "v8.14" yazmalı.
+3. Başlıkta "v8.15" yazmalı.
 
-## v8.14'te YENİ: Sadece-depo modunda seri tamamlama desteği
+## v8.15'te düzeltilen: Transfer modu görünüm karışıklığı
 
-### Sorun neydi?
-"Sadece Depodan Transfer" modunda, depodan çıkan bir ürün alıcı mağazada
-KIRIK oluşturabiliyordu. Örnek: İzmir bir rengi çok satmış, depodan
-1 beden gidiyor ama İzmir'de o üründe stok yok → tek başına kırık.
+### Sorun
+"Sadece Depodan" seçince tabloda "Kırık" türü kayıtlar görünüyor,
+"kırık çalışması da çıkıyor" izlenimi veriyordu.
 
-### Çözüm
-Sadece-depo modunda artık şu kontrol var: Depo transferi bir mağazada
-kırık bırakacaksa, o seriyi tamamlamak için:
-1. ÖNCE depodan eksik bedenler eklenir,
-2. SONRA diğer mağazalardan eksik bedenler gönderilir.
+### Açıklama + çözüm
+Algoritma zaten doğru çalışıyordu — sadece-depo modunda bağımsız
+kırık/mağaza çalışması YAPILMIYOR. Görünen kayıtlar, depo transferinin
+bir mağazada kırık bırakmaması için devreye giren SERİ TAMAMLAMA
+destek transferleridir.
 
-Kurallar:
-- Kaynak mağazada kırık YARATILMAZ (o bedeni çıkarınca kaynak kırık
-  olacaksa o mağazadan alınmaz).
-- İyi satan mağazadan ürün sökülmez — kaynak olarak o üründe en az
-  satışı olan mağaza seçilir.
-- Seri bütünlüğü her zaman önceliklidir.
+v8.15'te bunlar artık ayrı bir tür: **"🔗 Seri Tamamlama"** (yeşil).
+Birleşik tabloda ve Excel'de "Kırık" olarak DEĞİL, "Seri Tamamlama"
+olarak gösterilir. Kırık özet kartı yalnızca gerçek kırıkları sayar.
 
-Bu destek SADECE "Sadece Depodan" modunda çalışır. İkisi de seçiliyse
-zaten 2./3. tur kırık simülasyonu bu işi yapıyor.
+### Doğrulama (test sonuçları)
+- Sadece-depo modu → tabloda yalnızca "Depo" + "Seri Tamamlama".
+  Hiç "Kırık" veya "Mağaza" yok. Gerçek kırık kartı = 0.
+- Sadece-mağaza modu → yalnızca "Mağaza" + "Kırık" + "Fazla Stok".
+  Hiç "Depo" yok.
 
-Seri tamamlama transferleri raporda "🔗 Seri tamamlama" etiketiyle
-ve transferTipi = SERI_TAMAMLAMA olarak görünür.
+### Mantık (kullanıcının istediği gibi)
+Sadece-depo modu: Bir ürünü en iyi satan mağaza (örn. Bursa) ama o
+üründe tüm bedenleri stok=0 ise, depo oraya transfer edince kırık
+oluşurdu. Bunu engellemek için mağazalar arası transfer SADECE o ürün
+için devreye girer, diğer mağazalardan alıp Bursa'ya gönderir. Böylece
+hem depodan doğru adrese çıkış olur hem Bursa'da kırık oluşmaz.
 
-### Test sonucu
-Sadece-depo modunda transfer sonrası kırık kalan hedef: 14 → 2'ye indi.
-(Kalan 2: hiçbir mağazada/depoda eksik bedeni bulunamayan ürünler.)
-
-## Önceki sürümlerden (korundu)
-v8.13: YTD iptal, transfer modu, sezon tarihi, mükerrer denetimi.
-v8.12: Mağaza × kategori DNA. v8.11: Çalışmayı Kaydet + 3. tur.
+NOT: Eğer hâlâ eski sonuç görüyorsanız, "Önceki Transfer Çalışmaları"
+listesinden ESKİ bir kaydı açıyor olabilirsiniz. Yeni analiz için
+"Transfer Analizi Başlat" butonunu kullanın.
