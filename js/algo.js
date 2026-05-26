@@ -1,7 +1,14 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.14 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.15 — ALGORİTMA MODÜLÜ
 //
-// v8.14 GELİŞTİRMESİ (kullanıcı talebi — sadece-depo modunda seri bütünlüğü):
+// v8.15 DÜZELTMESİ (kullanıcı geri bildirimi — transfer modu görünümü):
+//  36. SERİ TAMAMLAMA AYRI TÜR — Sadece-depo modunda devreye giren seri
+//      tamamlama transferleri artık birleşik tabloda ve Excel'de "Seri
+//      Tamamlama" (🔗) türüyle gösterilir; "Kırık" sayılmaz. Kırık beden
+//      özet kartı yalnızca gerçek kırıkları sayar. Böylece sadece-depo
+//      modunda "kırık çalışması da çıkıyor" karışıklığı giderildi —
+//      çıkan kayıtlar depo transferinin seri bütünlüğü desteğidir.
+//
 //  35. SADECE-DEPO MODU SERİ TAMAMLAMA DESTEĞİ — "Sadece Depodan Transfer"
 //      modunda bile, depodan çıkan ürün alıcı mağazada KIRIK oluşturacaksa,
 //      o mağazaya önce depodan sonra diğer mağazalardan eksik bedenler
@@ -2037,7 +2044,7 @@ const ALGO = (function() {
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.14',
+    VERSION:'v8.15',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();

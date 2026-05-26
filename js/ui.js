@@ -398,7 +398,10 @@ const UI = (function() {
     $('s1').textContent = r.stats.merkezStok.toLocaleString('tr');
     $('s2').textContent = r.depoTransfers.length;
     $('s3').textContent = r.magTransfers.length;
-    $('s4').textContent = r.kirikBeden.length;
+    // s4 = yalnızca GERÇEK kırık (seri tamamlama ve fazla stok hariç)
+    const gercekKirik = (r.kirikBeden || []).filter(k =>
+      k.transferTipi !== 'SERI_TAMAMLAMA' && k.transferTipi !== 'FAZLA_STOK' && !k.seriTamamlama).length;
+    $('s4').textContent = gercekKirik;
     $('s5').textContent = r.stats.yeniSezonAdet.toLocaleString('tr');
     $('s6').textContent = r.stats.virmanAdet.toLocaleString('tr');
     if (document.getElementById('s7')) {
@@ -505,9 +508,12 @@ const UI = (function() {
         kategori: t.kategori,
       });
     }
-    // 3) KIRIK BEDEN (v8.8: FAZLA STOK ayrı tür olarak gösterilir)
+    // 3) KIRIK BEDEN — tür ayrımı:
+    //    FAZLA_STOK → "Fazla Stok" · SERI_TAMAMLAMA → "Seri Tamamlama" · diğer → "Kırık"
     for (const k of (r.kirikBeden || [])) {
-      const tur = k.transferTipi === 'FAZLA_STOK' ? 'Fazla Stok' : 'Kırık';
+      let tur = 'Kırık';
+      if (k.transferTipi === 'FAZLA_STOK') tur = 'Fazla Stok';
+      else if (k.transferTipi === 'SERI_TAMAMLAMA' || k.seriTamamlama) tur = 'Seri Tamamlama';
       allRows.push({
         tur,
         gonderen: k.gonderen ? k.gonderen.label : '-',
@@ -548,7 +554,7 @@ const UI = (function() {
       const col = el.getAttribute('data-col');
       if (col === 'guven') return; // sabit aralık seçenekleri
       if (col === 'takim') { fillSelect(el, ['Takım', 'Tek']); return; }
-      if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Fazla Stok']); return; }
+      if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Fazla Stok', 'Seri Tamamlama']); return; }
       if (col === 'sezon') { fillSelect(el, ['YENI', 'VIRMAN']); return; }
       fillSelect(el, allRows.map(row => {
         if (col === 'takim') return row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
@@ -672,10 +678,11 @@ const UI = (function() {
   
   function turBadge(tur) {
     const map = {
-      'Depo':       { bg:'#EDE9FE', col:'#5B21B6', br:'#C4B5FD', ic:'📦' },
-      'Mağaza':     { bg:'#DBEAFE', col:'#1E40AF', br:'#93C5FD', ic:'🔄' },
-      'Kırık':      { bg:'#FEE2E2', col:'#991B1B', br:'#FCA5A5', ic:'⚠️' },
-      'Fazla Stok': { bg:'#FEF3C7', col:'#92400E', br:'#FCD34D', ic:'📊' },
+      'Depo':            { bg:'#EDE9FE', col:'#5B21B6', br:'#C4B5FD', ic:'📦' },
+      'Mağaza':          { bg:'#DBEAFE', col:'#1E40AF', br:'#93C5FD', ic:'🔄' },
+      'Kırık':           { bg:'#FEE2E2', col:'#991B1B', br:'#FCA5A5', ic:'⚠️' },
+      'Fazla Stok':      { bg:'#FEF3C7', col:'#92400E', br:'#FCD34D', ic:'📊' },
+      'Seri Tamamlama':  { bg:'#D1FAE5', col:'#065F46', br:'#6EE7B7', ic:'🔗' },
     };
     const m = map[tur] || map['Depo'];
     return `<span style="display:inline-flex;align-items:center;gap:3px;background:${m.bg};color:${m.col};border:1px solid ${m.br};padding:2px 7px;border-radius:10px;font-size:9px;font-weight:700;white-space:nowrap">${m.ic} ${tur}</span>`;
