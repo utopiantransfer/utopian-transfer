@@ -1254,6 +1254,11 @@ const ALGO = (function() {
         const sdata=pdata.stores[sk];
         // v8.2: Bu mağaza bu ürün+renk için zaten HEDEF olduysa kaynak olamaz
         if (!canBeSource(pkey,sk)) continue;
+        // v8.17 DÜZELTME: Kırık modülü bu mağazayı zaten kaynak olarak işaretlediyse
+        //   mağaza→mağaza modülü de kaynak yapamaz — çift sayım (double-count) önlenir.
+        //   Kırık mağazanın TÜM stoğunu işlediğinden, mağaza modülü aynı bedeni
+        //   farklı hedeflere yönlendirip stok aşımına yol açıyordu.
+        if (rmGet(pkey).sources.has(sk)) continue;
         for (const [beden,sd] of Object.entries(sdata.sizes)) {
           if (sd.stok<=0) continue;
           if (sd.satis>0) continue;   // Satışı var → göndermeyiz
@@ -1987,6 +1992,44 @@ const ALGO = (function() {
       };
       // Geriye dönük uyumluluk
       result.stats.hataliTarihOzet=result.stats.yoldaOzet;
+    }
+
+    // ===== POST-PROCESS: Alıcı Mağaza Beden Durumu =====
+    // Her transfer için hedef mağazada transfer SONRASI beden doluluk bilgisi hesaplanır.
+    // Format: "X/Y" — X = transfer sonrası hedefte stoklu beden sayısı, Y = toplam beden sayısı
+    {
+      const allT = [].concat(result.depoTransfers, result.magTransfers, result.kirikBeden);
+      for (const t of allT) {
+        const pkey = t.urunKodu + '|' + t.renkKodu;
+        const pdata = productMap[pkey];
+        if (!pdata) { t.hedefBedenDurumu = '—'; continue; }
+
+        // Toplam beden sayısı (tüm mağaza + depo kaynaklarından)
+        const tb = new Set();
+        for (const sd of Object.values(pdata.stores))
+          for (const b of Object.keys(sd.sizes))
+            if (String(b).toUpperCase() !== 'STD') tb.add(b);
+        for (const dd of Object.values(pdata.depots))
+          for (const b of Object.keys(dd.sizes))
+            if (String(b).toUpperCase() !== 'STD') tb.add(b);
+        const toplamSize = tb.size;
+        if (toplamSize === 0) { t.hedefBedenDurumu = '—'; continue; }
+
+        // Hedef mağaza anahtarı
+        const hedefKey = (t.hedef && t.hedef.key) ||
+                         (t.distrib && t.distrib[0] ? t.distrib[0].store.key : null);
+        if (!hedefKey) { t.hedefBedenDurumu = '—'; continue; }
+
+        // Hedef mağazada mevcut stoklu beden sayısı (transfer öncesi gerçek veri)
+        const hStore = pdata.stores[hedefKey];
+        let stoklu = 0;
+        if (hStore && hStore.sizes) {
+          for (const sd of Object.values(hStore.sizes))
+            if ((sd.stok || 0) > 0) stoklu++;
+        }
+
+        t.hedefBedenDurumu = stoklu + '/' + toplamSize;
+      }
     }
 
     return result;

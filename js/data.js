@@ -353,7 +353,7 @@ const DATA = (function() {
         'Ürün Kodu': row.urunKodu,
         'Renk': row.renk,
         'Beden': row.beden,
-        'Takım': row.takimDurumu || '',
+        'Alıcı Beden': row.hedefBedenDurumu || '',
         'Güven %': row.guven || '',
         'Neden': row.neden,
         'Adet': row.adet,

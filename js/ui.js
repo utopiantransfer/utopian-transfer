@@ -39,7 +39,7 @@ const UI = (function() {
     e.stopPropagation();
     
     // Box border'ını sıfırla
-    const boxIds = { nebim: 'u1', takim: 'u2', irsaliye: 'u3' };
+    const boxIds = { nebim: 'u1', irsaliye: 'u3' };
     const el = $(boxIds[type]);
     if (el) el.style.borderColor = '';
     
@@ -53,13 +53,12 @@ const UI = (function() {
     }
     
     // İlgili input'a dosya ata + tetikle
-    const inputIds = { nebim: 'f1', takim: 'f2', irsaliye: 'f3' };
+    const inputIds = { nebim: 'f1', irsaliye: 'f3' };
     const input = $(inputIds[type]);
     
     // Doğrudan loadXxx çağır
     const fakeEvent = { target: { files: [file] } };
     if (type === 'nebim') DATA.loadNebim(fakeEvent);
-    else if (type === 'takim') DATA.loadTakim(fakeEvent);
     else if (type === 'irsaliye') DATA.loadIrsaliye(fakeEvent);
   }
   
@@ -394,6 +393,16 @@ const UI = (function() {
     buildAllRows(r);
     populateColFilters();
     
+    // Sezon kodunu tüm dinamik etiketlere yaz
+    const seasonCode = (r.stats && r.stats.seasonCode) || 
+      (document.getElementById('newSeasonInput') ? document.getElementById('newSeasonInput').value : 'Y26') || 'Y26';
+    const smLbl = document.getElementById('smSezonLabel');
+    if (smLbl) smLbl.textContent = seasonCode;
+    const hintLbl = document.getElementById('sezonHintLabel');
+    if (hintLbl) hintLbl.textContent = seasonCode;
+    const curLbl = document.getElementById('curSeasonLabel');
+    if (curLbl) curLbl.textContent = seasonCode;
+    
     // Özet kartlar
     $('s1').textContent = r.stats.merkezStok.toLocaleString('tr');
     $('s2').textContent = r.depoTransfers.length;
@@ -421,7 +430,7 @@ const UI = (function() {
     $('tcBek').textContent = r.bekleyen.length;
     $('tcHata').textContent = r.hataliTarih.length;
     
-    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.6 (Y26:15g · Virman:30g · Bayes)`;
+    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.6 (${seasonCode}:15g · Virman:30g · Bayes)`;
     if (DATA.state && (DATA.state && DATA.state.lastAnalysisDate)) {
       $('stHistory').textContent = 'Son analiz: ' + (DATA.state && DATA.state.lastAnalysisDate).toLocaleString('tr');
     } else if (DATA.lastAnalysisDate) {
@@ -438,9 +447,11 @@ const UI = (function() {
   function updateDashboard(r) {
     const totalAdet = r.depoTransfers.reduce((s, t) => s + t.distrib.reduce((x, d) => x + d.qty, 0), 0)
       + r.magTransfers.reduce((s, t) => s + t.adet, 0);
+    const seasonCode = (r.stats && r.stats.seasonCode) ||
+      (document.getElementById('newSeasonInput') ? document.getElementById('newSeasonInput').value : 'Y26') || 'Y26';
     
     $('dSum').innerHTML = `
-      <div class="dash-row"><span class="lbl">Yeni Sezon Y26</span><span class="val ok">${r.stats.yeniSezonAdet}</span></div>
+      <div class="dash-row"><span class="lbl">Yeni Sezon ${seasonCode}</span><span class="val ok">${r.stats.yeniSezonAdet}</span></div>
       <div class="dash-row"><span class="lbl">Virman</span><span class="val">${r.stats.virmanAdet}</span></div>
       <div class="dash-row"><span class="lbl dash-total">TOPLAM TRANSFER</span><span class="val dash-total">${totalAdet}</span></div>
       <div class="dash-row"><span class="lbl">Yeni Giriş / Yolda</span><span class="val by">${r.hataliTarih.length}</span></div>
@@ -488,6 +499,7 @@ const UI = (function() {
         hedef: hedefStore ? hedefStore.label : '-',
         hedefRank: hedefStore ? hedefStore.rank : 0,
         kategori: t.kategori,
+        hedefBedenDurumu: t.hedefBedenDurumu || '—',
       });
     }
     // 2) MAĞAZA ARASI
@@ -506,9 +518,7 @@ const UI = (function() {
         hedef: t.hedef ? t.hedef.label : '-',
         hedefRank: t.hedef ? t.hedef.rank : 0,
         kategori: t.kategori,
-      });
-    }
-    // 3) KIRIK BEDEN — tür ayrımı:
+        hedefBedenDurumu: t.hedefBedenDurumu || '—', — tür ayrımı:
     //    FAZLA_STOK → "Fazla Stok" · SERI_TAMAMLAMA → "Seri Tamamlama" · diğer → "Kırık"
     for (const k of (r.kirikBeden || [])) {
       let tur = 'Kırık';
@@ -529,6 +539,7 @@ const UI = (function() {
         hedef: k.hedef ? k.hedef.label : '-',
         hedefRank: k.hedef ? k.hedef.rank : 0,
         kategori: k.kategori,
+        hedefBedenDurumu: k.hedefBedenDurumu || '—',
       });
     }
   }
@@ -553,11 +564,9 @@ const UI = (function() {
       if (el.tagName !== 'SELECT') return;
       const col = el.getAttribute('data-col');
       if (col === 'guven') return; // sabit aralık seçenekleri
-      if (col === 'takim') { fillSelect(el, ['Takım', 'Tek']); return; }
       if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Seri Tamamlama']); return; }
       if (col === 'sezon') { fillSelect(el, ['YENI', 'VIRMAN']); return; }
       fillSelect(el, allRows.map(row => {
-        if (col === 'takim') return row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
         return row[col];
       }));
     });
@@ -587,10 +596,6 @@ const UI = (function() {
       if (f.renk && row.renk !== f.renk) return false;
       if (f.beden && row.beden !== f.beden) return false;
       if (f.hedef && row.hedef !== f.hedef) return false;
-      if (f.takim) {
-        const t = row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
-        if (t !== f.takim) return false;
-      }
       if (f.guven) {
         const g = row.guven || 0;
         if (f.guven === '90' && g < 90) return false;
@@ -653,9 +658,16 @@ const UI = (function() {
     return '<span class="badge bv" style="font-size:8px">Virman</span>';
   }
   
-  function takimBadge(v) {
-    if (v === 'TAKIM') return '<span class="badge bg" style="font-size:7px">Takım</span>';
-    return '<span class="badge bm" style="font-size:7px">Tek</span>';
+  function bedenDurumuBadge(v) {
+    if (!v || v === '—') return '<span style="font-size:9px;color:#9CA3AF">—</span>';
+    const parts = v.split('/');
+    if (parts.length !== 2) return `<span style="font-size:9px">${v}</span>`;
+    const x = parseInt(parts[0]), y = parseInt(parts[1]);
+    const pct = y > 0 ? x / y : 0;
+    const bg = pct >= 1 ? '#D1FAE5' : pct >= 0.6 ? '#FEF3C7' : '#DBEAFE';
+    const col = pct >= 1 ? '#065F46' : pct >= 0.6 ? '#92400E' : '#1E40AF';
+    const br = pct >= 1 ? '#6EE7B7' : pct >= 0.6 ? '#FCD34D' : '#93C5FD';
+    return `<span style="display:inline-block;background:${bg};color:${col};border:1px solid ${br};padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;font-family:monospace;letter-spacing:0.5px">${v}</span>`;
   }
   
   function productLink(kod) {
@@ -719,7 +731,7 @@ const UI = (function() {
         <td>${productLink(row.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${row.renk}</td>
         <td style="font-family:var(--fm);font-weight:700${row.tur === 'Kırık' ? ';color:var(--er)' : ''}">${row.beden}</td>
-        <td>${takimBadge(row.takimDurumu)}</td>
+        <td>${bedenDurumuBadge(row.hedefBedenDurumu)}</td>
         <td><span class="perf-num" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${row.neden}</td>
         <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${row.adet}</td>
