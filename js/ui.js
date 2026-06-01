@@ -430,13 +430,33 @@ const UI = (function() {
       }
       detay += '</ul></div>';
     }
+    if (sr.enIyiSaticiBosaltildi && sr.enIyiSaticiBosaltildi.length) {
+      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
+        '<b>En İyi Satıcı Boşaltıldı (' + sr.enIyiSaticiBosaltildi.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
+      for (const e of sr.enIyiSaticiBosaltildi.slice(0, 10)) {
+        detay += '<li>' + e.magaza + ' · ' + e.urunRenk + ' [' + e.beden + ']: en çok satan (' +
+          e.satis + ' satış) ama kaynak yapıldı</li>';
+      }
+      detay += '</ul></div>';
+    }
+    if (sr.hedefteKirik && sr.hedefteKirik.length) {
+      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
+        '<b>Hedefte Yeni Kırık (' + sr.hedefteKirik.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
+      for (const h of sr.hedefteKirik.slice(0, 10)) {
+        detay += '<li>' + h.magaza + ' · ' + h.urunRenk + ': transfer sonrası ' +
+          h.stokluBeden + ' beden kaldı (kırık eşiği ' + h.esik + ')</li>';
+      }
+      detay += '</ul></div>';
+    }
+    var _toplamSorun = (sr.stokAsimiSayisi||0) + (sr.rolCeliskisiSayisi||0) +
+      (sr.enIyiSaticiBosaltildiSayisi||0) + (sr.hedefteKirikSayisi||0);
     host.innerHTML =
       '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-left:4px solid #DC2626;' +
       'border-radius:8px;padding:10px 14px;margin:8px 0;">' +
       '<div style="display:flex;align-items:center;gap:10px">' +
       '<span style="font-size:18px">⚠️</span>' +
       '<div style="font-size:13px;color:#991B1B;font-weight:700">' +
-      'Veri Sağlık Raporu: ' + (sr.stokAsimiSayisi + sr.rolCeliskisiSayisi) +
+      'Veri Sağlık Raporu: ' + _toplamSorun +
       ' sorun bulundu — aşağıdaki transferleri kontrol edin' +
       '</div></div>' + detay + '</div>';
   }
