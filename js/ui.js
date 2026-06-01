@@ -385,6 +385,62 @@ const UI = (function() {
   
   // ========== ANA SONUÇ GÖSTERİMİ ==========
   
+  // v8.18 — VERİ SAĞLIK RAPORU BANNER'I
+  // Analiz sonrası otomatik doğrulama sonucunu üstte gösterir.
+  // Yeşil = temiz, Kırmızı = stok aşımı veya rol çelişkisi var.
+  function renderHealthReport(r) {
+    const sr = r && r.stats && r.stats.saglikRaporu;
+    let host = $('healthBanner');
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'healthBanner';
+      const app = $('app');
+      if (app && app.firstChild) app.insertBefore(host, app.firstChild);
+      else if (app) app.appendChild(host);
+    }
+    if (!sr) { host.innerHTML = ''; return; }
+
+    if (sr.durum === 'OK') {
+      host.innerHTML =
+        '<div style="background:#ECFDF5;border:1px solid #6EE7B7;border-left:4px solid #059669;' +
+        'border-radius:8px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:10px;">' +
+        '<span style="font-size:18px">✅</span>' +
+        '<div style="font-size:13px;color:#065F46;font-weight:600">' +
+        'Veri Sağlık Raporu: ' + sr.toplamTransfer + ' transfer doğrulandı · 0 stok aşımı · 0 çelişki' +
+        '</div></div>';
+      return;
+    }
+
+    // HATA durumu — detaylı liste
+    let detay = '';
+    if (sr.stokAsimi && sr.stokAsimi.length) {
+      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
+        '<b>Stok Aşımı (' + sr.stokAsimi.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
+      for (const a of sr.stokAsimi.slice(0, 10)) {
+        detay += '<li>' + a.magaza + ' · ' + a.urun + ' ' + a.renk + ' [' + a.beden + ']: ' +
+          a.gonderilen + ' gönderildi, sadece ' + a.baslangicStok + ' vardı (aşım: ' + a.asim + ')</li>';
+      }
+      detay += '</ul></div>';
+    }
+    if (sr.rolCeliskisi && sr.rolCeliskisi.length) {
+      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
+        '<b>Rol Çelişkisi (' + sr.rolCeliskisi.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
+      for (const c of sr.rolCeliskisi.slice(0, 10)) {
+        detay += '<li>' + c.magaza + ' · ' + c.urunRenk + ' (hem kaynak hem hedef)</li>';
+      }
+      detay += '</ul></div>';
+    }
+    host.innerHTML =
+      '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-left:4px solid #DC2626;' +
+      'border-radius:8px;padding:10px 14px;margin:8px 0;">' +
+      '<div style="display:flex;align-items:center;gap:10px">' +
+      '<span style="font-size:18px">⚠️</span>' +
+      '<div style="font-size:13px;color:#991B1B;font-weight:700">' +
+      'Veri Sağlık Raporu: ' + (sr.stokAsimiSayisi + sr.rolCeliskisiSayisi) +
+      ' sorun bulundu — aşağıdaki transferleri kontrol edin' +
+      '</div></div>' + detay + '</div>';
+  }
+
   function showResults(r) {
     $('uploadSection').classList.add('hidden');
     $('app').classList.remove('hidden');
@@ -392,6 +448,7 @@ const UI = (function() {
     
     buildAllRows(r);
     populateColFilters();
+    renderHealthReport(r);
     
     // Sezon kodunu tüm dinamik etiketlere yaz
     const seasonCode = (r.stats && r.stats.seasonCode) || 
@@ -518,7 +575,10 @@ const UI = (function() {
         hedef: t.hedef ? t.hedef.label : '-',
         hedefRank: t.hedef ? t.hedef.rank : 0,
         kategori: t.kategori,
-        hedefBedenDurumu: t.hedefBedenDurumu || '—', — tür ayrımı:
+        hedefBedenDurumu: t.hedefBedenDurumu || '—',
+      });
+    }
+    // 3) KIRIK BEDEN — tür ayrımı:
     //    FAZLA_STOK → "Fazla Stok" · SERI_TAMAMLAMA → "Seri Tamamlama" · diğer → "Kırık"
     for (const k of (r.kirikBeden || [])) {
       let tur = 'Kırık';

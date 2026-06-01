@@ -779,6 +779,62 @@ const ALGO = (function() {
     function canBeTarget(pk, sk) { return !rmGet(pk).sources.has(sk); }
     function canBeSource(pk, sk) { return !rmGet(pk).targets.has(sk); }
 
+    // ============================================================
+    // v8.18 — MERKEZİ CANLI STOK DEFTERİ (LEDGER)
+    // ============================================================
+    // KÖK SORUN: 3 modül (depo, kırık, mağaza) orijinal stok verisine bakıp
+    //   birbirinin harcadığı stoğu görmüyordu. Bir mağazadan 2 adet stoğu
+    //   kırık modülü gönderiyor, mağaza modülü AYNI 2 adedi tekrar gönderiyordu
+    //   → 2 stoktan 3 çıkış (GÖMLEK 3722 SİYAH hatası).
+    // ÇÖZÜM: Tüm modüller tek bir canlı deftere bakar. Her transfer kaydedildiği
+    //   an defterden DÜŞÜLÜR. Kaynak ararken orijinal veriye değil deftere
+    //   bakılır → stok aşımı YAPISAL olarak imkânsız.
+    //
+    // Defter yapısı: ledger[storeKey][pkey][beden] = kalan adet
+    const ledger = {};
+    function ledgerInit() {
+      for (const pkey of Object.keys(productMap)) {
+        const pdata = productMap[pkey];
+        for (const [sk, sd] of Object.entries(pdata.stores)) {
+          for (const [b, szd] of Object.entries(sd.sizes)) {
+            if (!ledger[sk]) ledger[sk] = {};
+            if (!ledger[sk][pkey]) ledger[sk][pkey] = {};
+            ledger[sk][pkey][b] = (szd.stok || 0);
+          }
+        }
+      }
+    }
+    // Bir mağazada o ürün+beden için defterdeki KALAN stok
+    function ledgerGet(sk, pkey, beden) {
+      return (ledger[sk] && ledger[sk][pkey] && ledger[sk][pkey][beden] != null)
+        ? ledger[sk][pkey][beden] : 0;
+    }
+    // Kaynaktan düş (gönderim). adet kadar düşer, negatife inmez.
+    function ledgerTakeFromSource(sk, pkey, beden, adet) {
+      if (!ledger[sk] || !ledger[sk][pkey] || ledger[sk][pkey][beden] == null) return 0;
+      const mevcut = ledger[sk][pkey][beden];
+      const alinan = Math.min(mevcut, adet);
+      ledger[sk][pkey][beden] = mevcut - alinan;
+      return alinan;  // gerçekte alınabilen miktar
+    }
+    // Hedefe ekle (teslim).
+    function ledgerAddToTarget(sk, pkey, beden, adet) {
+      if (!ledger[sk]) ledger[sk] = {};
+      if (!ledger[sk][pkey]) ledger[sk][pkey] = {};
+      ledger[sk][pkey][beden] = (ledger[sk][pkey][beden] || 0) + adet;
+    }
+    // Bir mağazada o ürün+renkte KAÇ FARKLI bedende stok var (defter canlı)
+    function ledgerStokluBedenSayisi(sk, pkey) {
+      if (!ledger[sk] || !ledger[sk][pkey]) return 0;
+      let c = 0;
+      for (const [b, adet] of Object.entries(ledger[sk][pkey])) {
+        if (String(b).toUpperCase() === 'STD') continue;
+        if (adet > 0) c++;
+      }
+      return c;
+    }
+    ledgerInit();
+
     // ===== DEPO → MAĞAZA =====
     // v8.13: Yalnızca transfer modunda "depo" seçiliyse çalışır.
     const trfMode = opts.transferMode || { depo:true, magaza:true };
@@ -865,6 +921,7 @@ const ALGO = (function() {
             depoKalan-=qty;
             storeTrfCount[tsk]+=qty;
             rmAddTarget(pkey,tsk);
+            ledgerAddToTarget(tsk, pkey, beden, qty);  // v8.18: hedefe teslim defere işlenir
             const storeStatus_=STORES.map(st=>{
               const sp_=pdata.storePerformance[st.key];
               const sz_=sp_&&sp_.sizes?sp_.sizes[beden]:null;
@@ -1005,16 +1062,23 @@ const ALGO = (function() {
       }
       if (allKirik.length===0) continue;
 
-      // ===== KONSOLİDASYON HUB SEÇİMİ (v8.7) =====
+      // ===== KONSOLİDASYON HUB SEÇİMİ (v8.7 + v8.18) =====
       // Kullanıcı geri bildirimi (BLUZ 1772 EKRU, ASKILI BLUZ 3299):
       //   "Ürün genel olarak kırığa düşmüşse, toplam satışı EN YÜKSEK mağazada
       //    topla — bu mağaza kırık olmasa bile. Kırık bir mağazaya GÖNDERME."
-      // KURAL: Bir ürün+renkte 2+ kırık mağaza varsa bir HUB seçilir.
-      //   HUB adayları = (a) kırık olup talebi olan mağazalar + (b) kırık
-      //   OLMAYAN ama bu üründe güçlü satışı olan mağazalar. Kazanan: toplam
-      //   satışı en yüksek, hedef olabilen mağaza. HUB asla kaynak olmaz.
+      // v8.18 KURAL — %70 OLGUNLUK: Ürün+renk ağ genelinde sell-through ≥ %70
+      //   ise VE başka mağazalarda kırık bekliyorsa, bu ürün "olgunlaşmış,
+      //   konsolide et" sınıfındadır. Tek kırık mağaza olsa bile en güçlü
+      //   mağazada toplanır (ABİYE 58464 PETROL örneği — Bursa en çok satan).
+      // v8.18 DÜZELTME — TEK HEDEF GARANTİSİ: HUB seçildiğinde TÜM bedenler
+      //   HUB'a gider; artık beden-bazlı dağıtım HUB'ı ezemez. Eskiden 36→
+      //   Gordion, 40→Bursa gibi dağılıyordu; oysa kullanıcı tek mağazada
+      //   toplanmasını istiyor.
+      const olgunUrun = sellThrough >= 0.70;
+      // HUB tetikleme: 2+ kırık mağaza VEYA (olgun ürün + en az 1 kırık)
+      const hubTetikle = allKirik.length >= 2 || (olgunUrun && allKirik.length >= 1);
       let hub=null, hubSatis=0, hubKirikMi=false;
-      if (allKirik.length>=2) {
+      if (hubTetikle) {
         const kirikKeys=new Set(allKirik.map(k=>k.sk));
         const hubCands=[];
         // (a) kırık mağazalar
@@ -1041,13 +1105,14 @@ const ALGO = (function() {
         if (hubCands.length) {
           // v8.13: YTD sıralaması İPTAL. Asıl kriter ÜRÜN+RENK TOPLAM SATIŞ;
           //   eşitlikte kanıtlı eksik beden, sonra koleksiyon genişliği.
+          //   (Kullanıcı onayı: "en iyi = o ürün+renkte toplam satışı en yüksek")
           hubCands.sort((a,b)=>
             b.satis-a.satis||b.kanitliEksik-a.kanitliEksik||
             b.stokSize-a.stokSize||String(a.sk).localeCompare(String(b.sk)));
           const best=hubCands[0];
           hubSatis=best.satis;
           hubKirikMi=best.kirik;
-          // HUB kırık bir mağazaysa onu allKirik'ten ayır; değilse sadece hedef.
+          // Kullanıcı onayı: "en çok satan kırıksa bile HUB olsun" → kırık HUB OK.
           hub={sk:best.sk};
         }
       }
@@ -1122,7 +1187,10 @@ const ALGO = (function() {
         //   v8.7: düşük olgunlukta HUB konsolidasyonu DEVRE DIŞI — sadece
         //         o bedeni satıp tüketmiş gerçek ihtiyaç sahibi mağazaya git.
         let target, isHubMode=false;
-        if (hub && !dususkOlgunluk) {
+        // v8.18: HUB varsa TÜM bedenler HUB'a gider (tek hedef garantisi).
+        //   Olgun ürün (sell-through ≥%70) ise düşük-olgunluk istisnası geçersiz —
+        //   ürün zaten satmış, konsolidasyon doğru karar.
+        if (hub && (!dususkOlgunluk || olgunUrun)) {
           target=pdata.storePerformance[hub.sk].store;
           isHubMode=true;
         } else {
@@ -1177,10 +1245,14 @@ const ALGO = (function() {
           if (src.sk===target.key) continue;
           if (depoTaken.has(`${pdata.meta.urunKodu}|${pdata.meta.renkKodu}|${beden}|${target.key}`)) continue;
 
+          // v8.18 LEDGER: Gerçek gönderilebilir miktar canlı defterden okunur.
+          //   Eğer önceki bir modül/tur bu stoğu kısmen harcadıysa, defterdeki
+          //   kalan kadar gönderilir. Stok aşımı (çift sayım) YAPISAL imkânsız.
+          const ledgerKalan = ledgerGet(src.sk, pkey, beden);
+          const gonderQty = Math.min(qty, ledgerKalan);
+          if (gonderQty <= 0) continue;  // defterde stok kalmamış → atla
+
           // v8.6 DÜZELTME: kaynakBeden_satis artık gerçek veriden okunuyor.
-          //   Eskiden sabit 0 yazılıydı → Kriter 3 her zaman tam +15 veriyor,
-          //   güveni yapay yükseltiyordu. Doğru: kaynak o bedeni satmışsa
-          //   o bedeni göndermek daha risklidir (kaynakta da talep var).
           const kaynakBedenSatis_=(src.sdata.sizes&&src.sdata.sizes[beden])
             ? (src.sdata.sizes[beden].satis||0) : 0;
           const guvenK_=calculateGuvenEndeksi({
@@ -1200,8 +1272,9 @@ const ALGO = (function() {
             const ihtiyacNot=(kHsize&&kHsize.satis>0&&(kHsize.stok||0)===0)
               ? ` (${target.label} bu bedeni ${kHsize.satis} adet satmış, stok 0 — ÖNCELİKLİ ihtiyaç)`
               : (kHsize&&kHsize.satis>0 ? ` (${target.label} bu bedeni satmış)` : '');
-            satisNot=` — ${target.label} bu üründe en güçlü talebe sahip kırık mağaza`
-                   + ` (toplam satış ${hubSatis}); kırık bedenler burada konsolide ediliyor${ihtiyacNot}`;
+            const olgunNot = olgunUrun ? ` [ürün %${Math.round(sellThrough*100)} satış — olgun, konsolide]` : '';
+            satisNot=` — ${target.label} bu üründe en güçlü satışa sahip mağaza`
+                   + ` (toplam satış ${hubSatis}); kırık bedenler burada konsolide ediliyor${ihtiyacNot}${olgunNot}`;
           } else {
             satisNot=(kHsize&&kHsize.satis>0)
               ? ` — ${target.label} bu bedeni ${kHsize.satis} adet satmış (satış potansiyeli)`
@@ -1209,18 +1282,29 @@ const ALGO = (function() {
           }
           const konsNot=(!isHubMode&&kaynakList.length>1)
             ? ` [${kaynakList.length} mağazadan ${target.label}'e konsolidasyon]` : '';
-          // v8.8 ÖNERİ 2 — KIRIK / FAZLA STOK AYRIMI:
-          //   Kırık beden = bir bedende 1-2 adet YETİM kalmış demektir.
-          //   Bir bedende 3+ adet varsa bu "kırık" değil, FAZLA STOK'tur;
-          //   ayrı etiketlenir ki rapor netleşsin ve güven yanlış okunmasın.
-          const transferTipi = qty >= 3 ? 'FAZLA_STOK' : 'KIRIK';
-          const tipNot = transferTipi==='FAZLA_STOK'
-            ? `Fazla stok (${qty} adet ${beden})` : 'Kırık beden';
+          // v8.19 DÜZELTME — KIRIK KAYNAK = HER ZAMAN KONSOLİDE:
+          //   Bu commit döngüsü brokenSources (kırık mağazalar) içinden gelir.
+          //   Kaynak mağaza KIRIK olduğu için (sadece bu beden kalmış, stoğu
+          //   1'den fazla olabilir), TÜM adet konsolide edilmelidir — geride
+          //   kırık kalmamalı. Eskiden gonderQty>=3 ise FAZLA_STOK etiketlenip
+          //   sonradan çıktıdan siliniyordu; bu, kırık mağazadaki 3+ adetlik
+          //   tek bedeni yok sayıyordu (kullanıcı senaryosu: 42 beden 3 adet,
+          //   başka beden yok → kırık, tümü gitmeli). Kırık kaynaktan gelen
+          //   transfer asla FAZLA_STOK sayılmaz.
+          const transferTipi = 'KIRIK';
+          const tipNot = gonderQty >= 3
+            ? `Kırık beden konsolidasyonu (${gonderQty} adet ${beden} — kaynak bu bedende kırık)`
+            : 'Kırık beden';
+
+          // v8.18 LEDGER: kaynaktan düş, hedefe ekle (komut sırasının yan etkisi yok)
+          ledgerTakeFromSource(src.sk, pkey, beden, gonderQty);
+          ledgerAddToTarget(target.key, pkey, beden, gonderQty);
+
           result.kirikBeden.push({
             gonderen:src.sdata.meta,hedef:target,
             urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
             renk:pdata.meta.renk,renkKodu:pdata.meta.renkKodu,
-            beden,adet:qty,
+            beden,adet:gonderQty,
             transferTipi,
             toplamSize,stokluBedenler:src.stokluB.length,
             bosBeden:toplamSize-src.stokluB.length,
@@ -1317,18 +1401,23 @@ const ALGO = (function() {
     }
 
     // Mağaza→Mağaza transferleri listeye ekle
-    // Sanal stok takibi: transfer sonrası kalan stok
-    const virtualStock={};
     for (const c of Object.values(grouped)) {
       // v8.2: Rol çelişkisi son kontrolü (kırık modülü sonradan rol eklemiş olabilir)
       const _pk=`${c.pdata.meta.urunKodu}|${c.pdata.meta.renkKodu}`;
       if (!canBeSource(_pk,c.kaynak.sk)||!canBeTarget(_pk,c.hedef.store.key)) continue;
+      // v8.17: Kırık modülü bu mağazayı kaynak işaretlediyse atla (çift sayım engeli)
+      if (rmGet(_pk).sources.has(c.kaynak.sk)) continue;
+      // v8.18 LEDGER: Canlı defterde bu bedende gerçekten stok kaldı mı?
+      //   Kırık modülü / depo turu bu stoğu harcamış olabilir. Defter boşsa atla.
+      const _ledgerKalan = ledgerGet(c.kaynak.sk, _pk, c.kaynak.beden);
+      if (_ledgerKalan <= 0) continue;
+      const qty=Math.min(_ledgerKalan,1);
+      if (qty<=0) continue;
       rmAddSource(_pk,c.kaynak.sk);
       rmAddTarget(_pk,c.hedef.store.key);
-      const qty=Math.min(c.kaynak.sd.stok,1);
-      const vkey=`${c.kaynak.sk}|${c.pdata.meta.urunKodu}|${c.pdata.meta.renkKodu}|${c.kaynak.beden}`;
-      if (!virtualStock[vkey]) virtualStock[vkey]={stok:c.kaynak.sd.stok,sent:0};
-      virtualStock[vkey].sent+=qty;
+      // Deftere işle: kaynaktan düş, hedefe ekle
+      ledgerTakeFromSource(c.kaynak.sk, _pk, c.kaynak.beden, qty);
+      ledgerAddToTarget(c.hedef.store.key, _pk, c.kaynak.beden, qty);
 
       const sT_=c.pdata.meta.isNewSeason?'YENI':'VIRMAN';
       const sD_=c.pdata.meta.isNewSeason?'Yeni Sezon':'Virman';
@@ -1454,7 +1543,8 @@ const ALGO = (function() {
           const rol=(oncekiRol[prodKey]||{})[sk];
           if (rol==='hedef') continue;
           for (const beden of v.stoklu) {
-            const qty = v.sizes[beden]||0;
+            // v8.18: qty hem sanal stok hem ana defter ile sınırlanır (senkron garanti)
+            const qty = Math.min(v.sizes[beden]||0, ledgerGet(sk, prodKey, beden));
             if (qty<=0) continue;
             // bu beden için hedef: kırık OLMAYAN, o bedeni satmış/uygun mağaza
             const aday = Object.entries(pdata.storePerformance)
@@ -1491,6 +1581,9 @@ const ALGO = (function() {
             markRol(prodKey,target.key,'hedef');
             // sanal stoku güncelle (zincirleme kırık önlemek için)
             applyTr(sk, target.key, pdata.meta.urunKodu, pdata.meta.renkKodu, beden, qty);
+            // v8.18: ana defteri de senkronize et (post-process + doğrulama için)
+            ledgerTakeFromSource(sk, prodKey, beden, qty);
+            ledgerAddToTarget(target.key, prodKey, beden, qty);
             postStore[sk].sizes[beden]=0;
             postStore[sk].stoklu=postStore[sk].stoklu.filter(b=>b!==beden);
 
@@ -1512,7 +1605,7 @@ const ALGO = (function() {
               urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
               renk:pdata.meta.renk,renkKodu:pdata.meta.renkKodu,
               beden,adet:qty,
-              transferTipi: qty>=3 ? 'FAZLA_STOK' : 'KIRIK',
+              transferTipi: 'KIRIK',  // v8.19: post-transfer kırık kaynak → her zaman konsolide
               toplamSize,stokluBedenler:v.stoklu.length,
               bosBeden:toplamSize-v.stoklu.length,kirikEsik,
               altGrup:pdata.meta.altGrup,anaGrup:pdata.meta.anaGrup,
@@ -1572,7 +1665,8 @@ const ALGO = (function() {
           // 2. turda HEDEF olmuş mağazanın stoğu sökülmez (karar korunur)
           if ((oncekiRol[prodKey]||{})[sk]==='hedef') continue;
           for (const beden of v.stoklu) {
-            const qty = v.sizes[beden]||0;
+            // v8.18: qty hem sanal stok hem ana defter ile sınırlanır (senkron garanti)
+            const qty = Math.min(v.sizes[beden]||0, ledgerGet(sk, prodKey, beden));
             if (qty<=0) continue;
             const aday = Object.entries(pdata.storePerformance)
               .filter(([k,p])=>{
@@ -1617,6 +1711,9 @@ const ALGO = (function() {
             markRol(prodKey,sk,'kaynak');
             markRol(prodKey,target.key,'hedef');
             applyTr(sk, target.key, pdata.meta.urunKodu, pdata.meta.renkKodu, beden, qty);
+            // v8.18: ana defteri senkronize et
+            ledgerTakeFromSource(sk, prodKey, beden, qty);
+            ledgerAddToTarget(target.key, prodKey, beden, qty);
             postStore[sk].sizes[beden]=0;
             postStore[sk].stoklu=postStore[sk].stoklu.filter(b=>b!==beden);
 
@@ -1638,7 +1735,7 @@ const ALGO = (function() {
               urunKodu:pdata.meta.urunKodu,urunAdi:pdata.meta.urunAdi,
               renk:pdata.meta.renk,renkKodu:pdata.meta.renkKodu,
               beden,adet:qty,
-              transferTipi: qty>=3 ? 'FAZLA_STOK' : 'KIRIK',
+              transferTipi: 'KIRIK',  // v8.19: post-transfer kırık kaynak → her zaman konsolide
               toplamSize,stokluBedenler:v.stoklu.length,
               bosBeden:toplamSize-v.stoklu.length,kirikEsik,
               altGrup:pdata.meta.altGrup,anaGrup:pdata.meta.anaGrup,
@@ -1897,10 +1994,12 @@ const ALGO = (function() {
       result.stats.mukerrerSilinen = mukerrerSilinen;
     }
 
-    // ===== v8.16 — FAZLA STOK KAYITLARINI TÜM RAPORLARDAN ÇIKAR =====
-    // KURAL (kullanıcı talebi): "Fazla stok" dağılımı hiçbir raporda
-    //   görünmesin. Bir bedende 3+ adet (FAZLA_STOK) transferleri çıktıdan
-    //   tamamen kaldırılır; yalnızca gerçek kırık + seri tamamlama kalır.
+    // ===== v8.16/v8.19 — FAZLA STOK KAYITLARINI ÇIKAR (güvenlik ağı) =====
+    // v8.19 NOT: Kırık kaynaktan gelen transferler artık ASLA FAZLA_STOK
+    //   etiketlenmiyor (kırık mağazadaki 3+ adet tek beden de konsolide edilir).
+    //   Bu filtre yalnızca kırık-OLMAYAN bir kaynaktan üretilmiş gerçek fazla
+    //   stok kayıtları için güvenlik ağı olarak kalır. Pratikte artık nadiren
+    //   tetiklenir; kırık konsolidasyonunu etkilemez.
     {
       const oncesi = result.kirikBeden.length;
       result.kirikBeden = result.kirikBeden.filter(k => k.transferTipi !== 'FAZLA_STOK');
@@ -1994,9 +2093,10 @@ const ALGO = (function() {
       result.stats.hataliTarihOzet=result.stats.yoldaOzet;
     }
 
-    // ===== POST-PROCESS: Alıcı Mağaza Beden Durumu =====
-    // Her transfer için hedef mağazada transfer SONRASI beden doluluk bilgisi hesaplanır.
-    // Format: "X/Y" — X = transfer sonrası hedefte stoklu beden sayısı, Y = toplam beden sayısı
+    // ===== POST-PROCESS: Alıcı Mağaza Beden Durumu (v8.18 — LEDGER tabanlı) =====
+    // Her transfer için hedef mağazadaki transfer SONRASI gerçek beden doluluğu.
+    // Artık canlı defterden (ledger) okunur — tüm transferler uygulandıktan
+    // sonraki KESİN durum. Format: "X/Y" (X = stoklu beden, Y = toplam beden).
     {
       const allT = [].concat(result.depoTransfers, result.magTransfers, result.kirikBeden);
       for (const t of allT) {
@@ -2004,7 +2104,6 @@ const ALGO = (function() {
         const pdata = productMap[pkey];
         if (!pdata) { t.hedefBedenDurumu = '—'; continue; }
 
-        // Toplam beden sayısı (tüm mağaza + depo kaynaklarından)
         const tb = new Set();
         for (const sd of Object.values(pdata.stores))
           for (const b of Object.keys(sd.sizes))
@@ -2015,21 +2114,107 @@ const ALGO = (function() {
         const toplamSize = tb.size;
         if (toplamSize === 0) { t.hedefBedenDurumu = '—'; continue; }
 
-        // Hedef mağaza anahtarı
         const hedefKey = (t.hedef && t.hedef.key) ||
                          (t.distrib && t.distrib[0] ? t.distrib[0].store.key : null);
         if (!hedefKey) { t.hedefBedenDurumu = '—'; continue; }
 
-        // Hedef mağazada mevcut stoklu beden sayısı (transfer öncesi gerçek veri)
-        const hStore = pdata.stores[hedefKey];
-        let stoklu = 0;
-        if (hStore && hStore.sizes) {
-          for (const sd of Object.values(hStore.sizes))
-            if ((sd.stok || 0) > 0) stoklu++;
-        }
-
+        // v8.18: canlı defterden transfer-sonrası stoklu beden sayısı
+        const stoklu = ledgerStokluBedenSayisi(hedefKey, pkey);
         t.hedefBedenDurumu = stoklu + '/' + toplamSize;
       }
+    }
+
+    // ============================================================
+    // v8.18 — FİNAL DOĞRULAMA & VERİ SAĞLIK RAPORU
+    // ============================================================
+    // Tüm modüller ve turlar bittikten sonra çıktının tamamı denetlenir.
+    // İki kritik hata sınıfı taranır:
+    //   1. STOK AŞIMI: Bir mağaza+ürün+bedenden, başlangıç stoğundan fazla
+    //      gönderim yapılmış mı? (çift sayım kalıntısı)
+    //   2. ROL ÇELİŞKİSİ: Bir mağaza aynı ürün+renkte hem kaynak hem hedef mi?
+    // Bulunan her hata raporlanır; kullanıcı elle aramak zorunda kalmaz.
+    {
+      const saglik = { stokAsimi: [], rolCeliskisi: [], toplamTransfer: 0, durum: 'OK' };
+
+      // Başlangıç stok haritası (orijinal veri)
+      const baslangicStok = {};  // sk|pkey|beden → adet
+      for (const pkey of Object.keys(productMap)) {
+        for (const [sk, sd] of Object.entries(productMap[pkey].stores)) {
+          for (const [b, szd] of Object.entries(sd.sizes)) {
+            baslangicStok[`${sk}|${pkey}|${b}`] = (szd.stok || 0);
+          }
+        }
+      }
+
+      // Tüm transferlerden gönderim toplamı (kaynak bazında)
+      const gonderimToplam = {};  // sk|pkey|beden → adet
+      const kaynakSet = {};       // pkey → Set(sk)
+      const hedefSet = {};        // pkey → Set(sk)
+      const addRol = (map, pkey, sk) => {
+        if (!sk) return;
+        (map[pkey] = map[pkey] || new Set()).add(sk);
+      };
+
+      const allOut = [
+        ...result.magTransfers.map(t => ({...t, _src:(t.gonderen||t.kaynak||{}).key})),
+        ...result.kirikBeden.map(t => ({...t, _src:(t.gonderen||t.kaynak||{}).key})),
+      ];
+      for (const t of allOut) {
+        const pkey = t.urunKodu + '|' + t.renkKodu;
+        const sk = t._src;
+        const hk = (t.hedef||{}).key;
+        if (sk) {
+          gonderimToplam[`${sk}|${pkey}|${t.beden}`] =
+            (gonderimToplam[`${sk}|${pkey}|${t.beden}`] || 0) + (t.adet || 0);
+          addRol(kaynakSet, pkey, sk);
+        }
+        addRol(hedefSet, pkey, hk);
+        saglik.toplamTransfer++;
+      }
+      // Depo transferleri sadece hedef (kaynak = depo, sınırsız)
+      for (const t of result.depoTransfers) {
+        const pkey = t.urunKodu + '|' + t.renkKodu;
+        const hk = (t.hedef||{}).key || (t.distrib && t.distrib[0] ? t.distrib[0].store.key : null);
+        addRol(hedefSet, pkey, hk);
+        saglik.toplamTransfer++;
+      }
+
+      // 1) STOK AŞIMI taraması
+      for (const [key, gonderilen] of Object.entries(gonderimToplam)) {
+        const baslangic = baslangicStok[key] || 0;
+        if (gonderilen > baslangic) {
+          const [sk, uk, rk, ...bd] = key.split('|');
+          // key formatı sk|urunKodu|renkKodu|beden — pkey iki parça
+          const parts = key.split('|');
+          saglik.stokAsimi.push({
+            magaza: parts[0],
+            urun: parts[1],
+            renk: parts[2],
+            beden: parts[3],
+            baslangicStok: baslangic,
+            gonderilen,
+            asim: gonderilen - baslangic,
+          });
+        }
+      }
+
+      // 2) ROL ÇELİŞKİSİ taraması
+      for (const pkey of Object.keys(kaynakSet)) {
+        const kaynaklar = kaynakSet[pkey];
+        const hedefler = hedefSet[pkey] || new Set();
+        for (const sk of kaynaklar) {
+          if (hedefler.has(sk)) {
+            saglik.rolCeliskisi.push({ urunRenk: pkey, magaza: sk });
+          }
+        }
+      }
+
+      if (saglik.stokAsimi.length > 0 || saglik.rolCeliskisi.length > 0) {
+        saglik.durum = 'HATA';
+      }
+      saglik.stokAsimiSayisi = saglik.stokAsimi.length;
+      saglik.rolCeliskisiSayisi = saglik.rolCeliskisi.length;
+      result.stats.saglikRaporu = saglik;
     }
 
     return result;
@@ -2099,7 +2284,7 @@ const ALGO = (function() {
     scoreDepotTarget,scoreConsolidationTarget,scoreSizeTarget,bedenRunBilgisi,
     calculateGuvenEndeksi,
     SIZE_CURVE_NUMERIC,SIZE_CURVE_SML,
-    VERSION:'v8.16',
+    VERSION:'v8.19',
     THRESHOLDS:{NEW_SEASON:NEW_SEASON_DAY_THRESHOLD,VIRMAN:VIRMAN_DAY_THRESHOLD,STORE_LIMIT},
   };
 })();
