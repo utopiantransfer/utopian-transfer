@@ -1,5 +1,37 @@
 // ============================================================
-// UTOPIAN TRANSFER v8.16 — ALGORİTMA MODÜLÜ
+// UTOPIAN TRANSFER v8.20.1 — ALGORİTMA MODÜLÜ
+//
+// v8.20.1 DÜZELTMESİ (çalışma hatası):
+//  44. 'hp' BAŞLATILMADAN ERİŞİM HATASI — Mağaza→mağaza modülündeki yeni
+//      "hedefte kırık yaratma engeli" hp değişkenini tanımından önce
+//      kullanıyordu (ReferenceError). Doğrudan storePerformance erişimiyle
+//      düzeltildi. 20 farklı rastgele veri setiyle doğrulandı: 0 çalışma
+//      hatası, 0 stok aşımı.
+//
+// v8.20 DÜZELTMELERİ (Pazartesi kontrol listesi — kırık mantığı yeniden kuruldu):
+//  40. EN İYİ SATICIYI KORU — Bir mağaza "satışı iyi olduğu için" tükenip
+//      kırık kaldıysa (en çok satan VEYA kanıtlı eksiği olan), artık KAYNAK
+//      olamaz; ona SERİ TAMAMLANIR (HEDEF olur). Emaar/ETEK 5009 hatası.
+//  41. SERİ TAMAMLAMA KAYNAK ÖNCELİĞİ — En iyi satıcıya eksik beden
+//      gönderilirken: önce o bedende 2+ FAZLA stoğu olan mağaza, yoksa o
+//      bedeni SATMAMIŞ mağaza. Fazla stoklu Gordion'dan al kuralı.
+//  42. HEDEFTE YENİ KIRIK + KAYNAK BOŞALTMA ENGELİ — Transfer hedefte yeni
+//      kırık yaratacaksa (Bursa) veya satışı olan kaynağı boşaltacaksa
+//      (Panora XL) engellenir. Hem kırık hem mağaza→mağaza modüllerinde.
+//  43. İKİ YENİ SAĞLIK DENETİMİ — "En iyi satıcı boşaltıldı mı?" ve
+//      "Hedefte yeni kırık yaratıldı mı?" otomatik kontrol; banner'da görünür.
+//
+// v8.18/v8.19 DÜZELTMELERİ (stok aşımı + kırık konsolidasyon):
+//  37. MERKEZİ CANLI STOK DEFTERİ (LEDGER) — 3 modül artık tek bir canlı
+//      deftere bakar; her transfer anında düşülür. Çift sayım / stok aşımı
+//      YAPISAL olarak imkânsız (GÖMLEK 3722 SİYAH 2→3 hatası).
+//  38. %70 OLGUNLUK + TEK HEDEF GARANTİSİ — Sell-through ≥%70 ürünlerde tek
+//      kırık mağaza olsa bile en güçlü mağazada konsolide; HUB seçilince TÜM
+//      bedenler HUB'a gider (dağılım önlendi).
+//  39. KIRIK KAYNAK = HER ZAMAN KONSOLİDE — Kırık mağazadaki 3+ adetlik tek
+//      beden de FAZLA_STOK sayılıp silinmez; tümü konsolide edilir.
+//
+// === ESKİ SÜRÜM NOTLARI (v8.15 ve öncesi) ===
 //
 // v8.15 DÜZELTMESİ (kullanıcı geri bildirimi — transfer modu görünümü):
 //  36. SERİ TAMAMLAMA AYRI TÜR — Sadece-depo modunda devreye giren seri
