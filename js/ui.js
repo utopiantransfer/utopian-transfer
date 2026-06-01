@@ -39,7 +39,7 @@ const UI = (function() {
     e.stopPropagation();
     
     // Box border'ını sıfırla
-    const boxIds = { nebim: 'u1', irsaliye: 'u3' };
+    const boxIds = { nebim: 'u1', takim: 'u2', irsaliye: 'u3' };
     const el = $(boxIds[type]);
     if (el) el.style.borderColor = '';
     
@@ -53,12 +53,13 @@ const UI = (function() {
     }
     
     // İlgili input'a dosya ata + tetikle
-    const inputIds = { nebim: 'f1', irsaliye: 'f3' };
+    const inputIds = { nebim: 'f1', takim: 'f2', irsaliye: 'f3' };
     const input = $(inputIds[type]);
     
     // Doğrudan loadXxx çağır
     const fakeEvent = { target: { files: [file] } };
     if (type === 'nebim') DATA.loadNebim(fakeEvent);
+    else if (type === 'takim') DATA.loadTakim(fakeEvent);
     else if (type === 'irsaliye') DATA.loadIrsaliye(fakeEvent);
   }
   
@@ -385,82 +386,6 @@ const UI = (function() {
   
   // ========== ANA SONUÇ GÖSTERİMİ ==========
   
-  // v8.18 — VERİ SAĞLIK RAPORU BANNER'I
-  // Analiz sonrası otomatik doğrulama sonucunu üstte gösterir.
-  // Yeşil = temiz, Kırmızı = stok aşımı veya rol çelişkisi var.
-  function renderHealthReport(r) {
-    const sr = r && r.stats && r.stats.saglikRaporu;
-    let host = $('healthBanner');
-    if (!host) {
-      host = document.createElement('div');
-      host.id = 'healthBanner';
-      const app = $('app');
-      if (app && app.firstChild) app.insertBefore(host, app.firstChild);
-      else if (app) app.appendChild(host);
-    }
-    if (!sr) { host.innerHTML = ''; return; }
-
-    if (sr.durum === 'OK') {
-      host.innerHTML =
-        '<div style="background:#ECFDF5;border:1px solid #6EE7B7;border-left:4px solid #059669;' +
-        'border-radius:8px;padding:10px 14px;margin:8px 0;display:flex;align-items:center;gap:10px;">' +
-        '<span style="font-size:18px">✅</span>' +
-        '<div style="font-size:13px;color:#065F46;font-weight:600">' +
-        'Veri Sağlık Raporu: ' + sr.toplamTransfer + ' transfer doğrulandı · 0 stok aşımı · 0 çelişki' +
-        '</div></div>';
-      return;
-    }
-
-    // HATA durumu — detaylı liste
-    let detay = '';
-    if (sr.stokAsimi && sr.stokAsimi.length) {
-      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
-        '<b>Stok Aşımı (' + sr.stokAsimi.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
-      for (const a of sr.stokAsimi.slice(0, 10)) {
-        detay += '<li>' + a.magaza + ' · ' + a.urun + ' ' + a.renk + ' [' + a.beden + ']: ' +
-          a.gonderilen + ' gönderildi, sadece ' + a.baslangicStok + ' vardı (aşım: ' + a.asim + ')</li>';
-      }
-      detay += '</ul></div>';
-    }
-    if (sr.rolCeliskisi && sr.rolCeliskisi.length) {
-      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
-        '<b>Rol Çelişkisi (' + sr.rolCeliskisi.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
-      for (const c of sr.rolCeliskisi.slice(0, 10)) {
-        detay += '<li>' + c.magaza + ' · ' + c.urunRenk + ' (hem kaynak hem hedef)</li>';
-      }
-      detay += '</ul></div>';
-    }
-    if (sr.enIyiSaticiBosaltildi && sr.enIyiSaticiBosaltildi.length) {
-      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
-        '<b>En İyi Satıcı Boşaltıldı (' + sr.enIyiSaticiBosaltildi.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
-      for (const e of sr.enIyiSaticiBosaltildi.slice(0, 10)) {
-        detay += '<li>' + e.magaza + ' · ' + e.urunRenk + ' [' + e.beden + ']: en çok satan (' +
-          e.satis + ' satış) ama kaynak yapıldı</li>';
-      }
-      detay += '</ul></div>';
-    }
-    if (sr.hedefteKirik && sr.hedefteKirik.length) {
-      detay += '<div style="margin-top:6px;font-size:12px;color:#7F1D1D">' +
-        '<b>Hedefte Yeni Kırık (' + sr.hedefteKirik.length + '):</b><ul style="margin:4px 0 0 16px;padding:0">';
-      for (const h of sr.hedefteKirik.slice(0, 10)) {
-        detay += '<li>' + h.magaza + ' · ' + h.urunRenk + ': transfer sonrası ' +
-          h.stokluBeden + ' beden kaldı (kırık eşiği ' + h.esik + ')</li>';
-      }
-      detay += '</ul></div>';
-    }
-    var _toplamSorun = (sr.stokAsimiSayisi||0) + (sr.rolCeliskisiSayisi||0) +
-      (sr.enIyiSaticiBosaltildiSayisi||0) + (sr.hedefteKirikSayisi||0);
-    host.innerHTML =
-      '<div style="background:#FEF2F2;border:1px solid #FCA5A5;border-left:4px solid #DC2626;' +
-      'border-radius:8px;padding:10px 14px;margin:8px 0;">' +
-      '<div style="display:flex;align-items:center;gap:10px">' +
-      '<span style="font-size:18px">⚠️</span>' +
-      '<div style="font-size:13px;color:#991B1B;font-weight:700">' +
-      'Veri Sağlık Raporu: ' + _toplamSorun +
-      ' sorun bulundu — aşağıdaki transferleri kontrol edin' +
-      '</div></div>' + detay + '</div>';
-  }
-
   function showResults(r) {
     $('uploadSection').classList.add('hidden');
     $('app').classList.remove('hidden');
@@ -468,17 +393,6 @@ const UI = (function() {
     
     buildAllRows(r);
     populateColFilters();
-    renderHealthReport(r);
-    
-    // Sezon kodunu tüm dinamik etiketlere yaz
-    const seasonCode = (r.stats && r.stats.seasonCode) || 
-      (document.getElementById('newSeasonInput') ? document.getElementById('newSeasonInput').value : 'Y26') || 'Y26';
-    const smLbl = document.getElementById('smSezonLabel');
-    if (smLbl) smLbl.textContent = seasonCode;
-    const hintLbl = document.getElementById('sezonHintLabel');
-    if (hintLbl) hintLbl.textContent = seasonCode;
-    const curLbl = document.getElementById('curSeasonLabel');
-    if (curLbl) curLbl.textContent = seasonCode;
     
     // Özet kartlar
     $('s1').textContent = r.stats.merkezStok.toLocaleString('tr');
@@ -507,7 +421,7 @@ const UI = (function() {
     $('tcBek').textContent = r.bekleyen.length;
     $('tcHata').textContent = r.hataliTarih.length;
     
-    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.6 (${seasonCode}:15g · Virman:30g · Bayes)`;
+    $('stTxt').textContent = `${DATA.rawData.length.toLocaleString('tr')} satır işlendi · Butik Modele Özel Dağıtım v8.6 (Y26:15g · Virman:30g · Bayes)`;
     if (DATA.state && (DATA.state && DATA.state.lastAnalysisDate)) {
       $('stHistory').textContent = 'Son analiz: ' + (DATA.state && DATA.state.lastAnalysisDate).toLocaleString('tr');
     } else if (DATA.lastAnalysisDate) {
@@ -524,11 +438,9 @@ const UI = (function() {
   function updateDashboard(r) {
     const totalAdet = r.depoTransfers.reduce((s, t) => s + t.distrib.reduce((x, d) => x + d.qty, 0), 0)
       + r.magTransfers.reduce((s, t) => s + t.adet, 0);
-    const seasonCode = (r.stats && r.stats.seasonCode) ||
-      (document.getElementById('newSeasonInput') ? document.getElementById('newSeasonInput').value : 'Y26') || 'Y26';
     
     $('dSum').innerHTML = `
-      <div class="dash-row"><span class="lbl">Yeni Sezon ${seasonCode}</span><span class="val ok">${r.stats.yeniSezonAdet}</span></div>
+      <div class="dash-row"><span class="lbl">Yeni Sezon Y26</span><span class="val ok">${r.stats.yeniSezonAdet}</span></div>
       <div class="dash-row"><span class="lbl">Virman</span><span class="val">${r.stats.virmanAdet}</span></div>
       <div class="dash-row"><span class="lbl dash-total">TOPLAM TRANSFER</span><span class="val dash-total">${totalAdet}</span></div>
       <div class="dash-row"><span class="lbl">Yeni Giriş / Yolda</span><span class="val by">${r.hataliTarih.length}</span></div>
@@ -576,7 +488,6 @@ const UI = (function() {
         hedef: hedefStore ? hedefStore.label : '-',
         hedefRank: hedefStore ? hedefStore.rank : 0,
         kategori: t.kategori,
-        hedefBedenDurumu: t.hedefBedenDurumu || '—',
       });
     }
     // 2) MAĞAZA ARASI
@@ -595,7 +506,6 @@ const UI = (function() {
         hedef: t.hedef ? t.hedef.label : '-',
         hedefRank: t.hedef ? t.hedef.rank : 0,
         kategori: t.kategori,
-        hedefBedenDurumu: t.hedefBedenDurumu || '—',
       });
     }
     // 3) KIRIK BEDEN — tür ayrımı:
@@ -619,7 +529,6 @@ const UI = (function() {
         hedef: k.hedef ? k.hedef.label : '-',
         hedefRank: k.hedef ? k.hedef.rank : 0,
         kategori: k.kategori,
-        hedefBedenDurumu: k.hedefBedenDurumu || '—',
       });
     }
   }
@@ -644,9 +553,11 @@ const UI = (function() {
       if (el.tagName !== 'SELECT') return;
       const col = el.getAttribute('data-col');
       if (col === 'guven') return; // sabit aralık seçenekleri
+      if (col === 'takim') { fillSelect(el, ['Takım', 'Tek']); return; }
       if (col === 'tur') { fillSelect(el, ['Depo', 'Mağaza', 'Kırık', 'Seri Tamamlama']); return; }
       if (col === 'sezon') { fillSelect(el, ['YENI', 'VIRMAN']); return; }
       fillSelect(el, allRows.map(row => {
+        if (col === 'takim') return row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
         return row[col];
       }));
     });
@@ -676,6 +587,10 @@ const UI = (function() {
       if (f.renk && row.renk !== f.renk) return false;
       if (f.beden && row.beden !== f.beden) return false;
       if (f.hedef && row.hedef !== f.hedef) return false;
+      if (f.takim) {
+        const t = row.takimDurumu === 'TAKIM' ? 'Takım' : 'Tek';
+        if (t !== f.takim) return false;
+      }
       if (f.guven) {
         const g = row.guven || 0;
         if (f.guven === '90' && g < 90) return false;
@@ -738,16 +653,9 @@ const UI = (function() {
     return '<span class="badge bv" style="font-size:8px">Virman</span>';
   }
   
-  function bedenDurumuBadge(v) {
-    if (!v || v === '—') return '<span style="font-size:9px;color:#9CA3AF">—</span>';
-    const parts = v.split('/');
-    if (parts.length !== 2) return `<span style="font-size:9px">${v}</span>`;
-    const x = parseInt(parts[0]), y = parseInt(parts[1]);
-    const pct = y > 0 ? x / y : 0;
-    const bg = pct >= 1 ? '#D1FAE5' : pct >= 0.6 ? '#FEF3C7' : '#DBEAFE';
-    const col = pct >= 1 ? '#065F46' : pct >= 0.6 ? '#92400E' : '#1E40AF';
-    const br = pct >= 1 ? '#6EE7B7' : pct >= 0.6 ? '#FCD34D' : '#93C5FD';
-    return `<span style="display:inline-block;background:${bg};color:${col};border:1px solid ${br};padding:2px 7px;border-radius:10px;font-size:9px;font-weight:800;font-family:monospace;letter-spacing:0.5px">${v}</span>`;
+  function takimBadge(v) {
+    if (v === 'TAKIM') return '<span class="badge bg" style="font-size:7px">Takım</span>';
+    return '<span class="badge bm" style="font-size:7px">Tek</span>';
   }
   
   function productLink(kod) {
@@ -811,7 +719,7 @@ const UI = (function() {
         <td>${productLink(row.urunKodu)}</td>
         <td style="font-family:var(--fm);color:var(--ac2);font-size:9px">${row.renk}</td>
         <td style="font-family:var(--fm);font-weight:700${row.tur === 'Kırık' ? ';color:var(--er)' : ''}">${row.beden}</td>
-        <td>${bedenDurumuBadge(row.hedefBedenDurumu)}</td>
+        <td>${takimBadge(row.takimDurumu)}</td>
         <td><span class="perf-num" style="background:${confColor};color:white;padding:3px 6px;border-radius:4px;font-weight:700;font-size:11px;display:inline-block;min-width:42px;text-align:center">%${conf}</span></td>
         <td style="font-size:8px;color:var(--mt);font-style:italic">${row.neden}</td>
         <td style="font-family:var(--fm);color:var(--ok);font-weight:800;font-size:13px;text-align:center">${row.adet}</td>
