@@ -18,7 +18,7 @@
 <header>
   <div class="hd-l">
     <div class="logo">UTOPIAN <span>TRANSFER</span></div>
-    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.20.1 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
+    <div class="logo-sub">Sezon Bazlı Dağıtım Motoru v8.16 (Y26: 15 GÜN · VİRMAN: 30 GÜN · Bayes)</div>
   </div>
   <div class="hd-stats" id="hdStats" style="display:none">
     <div class="hd-st"><div class="hd-v" id="hsTotal">0</div><div class="hd-l">Toplam</div></div>
@@ -76,7 +76,7 @@
           <div id="seasonBox" class="upl-box" style="border:2px solid #B8864F !important;cursor:default;" onclick="document.getElementById('newSeasonInput').focus()">
             <div class="upl-ico">🏷️</div>
             <div class="upl-t" style="color:#B8864F;">Yeni Sezon Kodu &amp; Başlangıç</div>
-            <div class="upl-s"><span id="sezonHintLabel">Y26</span> yazın → YENİ SEZON<br>Diğerleri → VİRMAN</div>
+            <div class="upl-s">Y26 yazın → YENİ SEZON<br>Diğerleri → VİRMAN</div>
             <input
               id="newSeasonInput"
               type="text"
@@ -84,7 +84,7 @@
               maxlength="6"
               placeholder="Y26"
               style="width:90px;padding:7px 10px;font-size:22px;font-weight:700;font-family:monospace;text-transform:uppercase;color:#D4A574;background:#0F172A;border:2px solid #B8864F;border-radius:6px;text-align:center;letter-spacing:3px;outline:none;display:block;margin:4px auto 6px;cursor:text;"
-              oninput="(function(v){v=v.toUpperCase().trim();this.value=v;var l=document.getElementById('curSeasonLabel');if(l)l.textContent=v||'Y26';var h=document.getElementById('sezonHintLabel');if(h)h.textContent=v||'Y26';}).call(this)"
+              oninput="this.value=this.value.toUpperCase().trim();var l=document.getElementById('curSeasonLabel');if(l)l.textContent=this.value||'Y26'"
               onclick="event.stopPropagation()"
             >
             <input
@@ -121,6 +121,15 @@
             </div>
           </div>
           
+          <div class="upl-box" id="u2" onclick="document.getElementById('f2').click()">
+            <div class="upl-ico">👔</div>
+            <div class="upl-t">Takım Bilgisi &amp; Mal Grubu</div>
+            <div class="upl-s">Sürükle-bırak veya tıklayın · Bir kez yüklenir, hep saklanır</div>
+            <button class="btn btn-g" onclick="event.stopPropagation();document.getElementById('f2').click()">Dosya Seç</button>
+            <input type="file" id="f2" accept=".xlsx,.xls" onchange="DATA.loadTakim(event)">
+            <div id="ts" class="upl-status"></div>
+          </div>
+          
           <div class="upl-box" id="u3" onclick="document.getElementById('f3').click()">
             <div class="upl-ico">📋</div>
             <div class="upl-t">Transfer Performans (Opsiyonel)</div>
@@ -129,8 +138,6 @@
             <input type="file" id="f3" accept=".xlsx,.xls" onchange="DATA.loadIrsaliye(event)">
             <div id="is" class="upl-status"></div>
           </div>
-          <!-- Takım bilgisi artık ayrı dosya gerektirmiyor; geriye dönük uyumluluk için gizli status div -->
-          <div id="ts" style="display:none"></div>
         </div>
 
         <div class="run-bar">
@@ -159,7 +166,7 @@
           <div class="sm-card"><div class="sm-l">Depo→Mağaza</div><div class="sm-v" id="s2">0</div><div class="sm-s">Transfer</div></div>
           <div class="sm-card"><div class="sm-l">Mağaza→Mağaza</div><div class="sm-v" id="s3">0</div><div class="sm-s">Transfer</div></div>
           <div class="sm-card"><div class="sm-l">Kırık Beden</div><div class="sm-v" id="s4">0</div><div class="sm-s">Toplama</div></div>
-          <div class="sm-card"><div class="sm-l">Yeni Sezon <span id="smSezonLabel">Y26</span></div><div class="sm-v" id="s5">0</div><div class="sm-s">Adet</div></div>
+          <div class="sm-card"><div class="sm-l">Yeni Sezon Y26</div><div class="sm-v" id="s5">0</div><div class="sm-s">Adet</div></div>
           <div class="sm-card"><div class="sm-l">Virman</div><div class="sm-v" id="s6">0</div><div class="sm-s">Adet</div></div>
           <div class="sm-card" style="background:linear-gradient(135deg,#059669 0%,#10B981 100%);color:white;border:2px solid #047857">
             <div class="sm-l" style="color:#D1FAE5;font-weight:700">🎯 GÜVEN ENDEKSİ</div>
@@ -212,7 +219,7 @@
                 <th style="background:#FEF3C7;color:#92400E;font-weight:700">📦 GÖNDERİCİ</th>
                 <th>SEZON</th><th>SEZON DURUM</th><th>ANA GRUP</th><th>ALT GRUP</th>
                 <th>ÜRÜN ADI</th><th>ÜRÜN KODU</th><th>RENK</th><th>BEDEN</th>
-                <th style="background:#EFF6FF;color:#1D4ED8;font-weight:700">ALİCİ BEDEN</th>
+                <th>TAKIM</th>
                 <th style="background:#DBEAFE;color:#1E40AF;font-weight:700">GÜVEN %</th>
                 <th>NEDEN</th>
                 <th>ADET</th>
@@ -229,7 +236,7 @@
                 <th><input type="text" class="cf" data-col="urunKodu" placeholder="filtre..." oninput="UI.applyColFilters()"></th>
                 <th><select class="cf" data-col="renk" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
                 <th><select class="cf" data-col="beden" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
-                <th></th>
+                <th><select class="cf" data-col="takim" onchange="UI.applyColFilters()"><option value="">Tümü</option></select></th>
                 <th><select class="cf" data-col="guven" onchange="UI.applyColFilters()"><option value="">Tümü</option><option value="90">%90+</option><option value="75">%75-89</option><option value="0">%75 altı</option></select></th>
                 <th><input type="text" class="cf" data-col="neden" placeholder="filtre..." oninput="UI.applyColFilters()"></th>
                 <th></th>
